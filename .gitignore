@@ -1,0 +1,46 @@
+# Dependencies and build output
+node_modules/
+target/
+dist/
+build/
+coverage/
+test-results/
+.venv/
+__pycache__/
+*.pyc
+
+# Local game data, generated candidates and models
+originals/
+backups/
+extracted/
+staging/
+models/
+cache/
+*.dat
+*.big
+*.bik
+*.rpl
+*.exe
+*.dll
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.mp4
+*.safetensors
+*.gguf
+*.pt
+*.pth
+savegame.*
+
+# Local configuration and signing material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.log
+.DS_Store
+Thumbs.db
