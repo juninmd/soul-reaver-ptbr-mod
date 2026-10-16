@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-10-15",
+  "reviewer": "user",
+  "response": "está ótimo, só cuidado para não traduzir com portugues de portugal, escolha portugues brasileiro sempre",
+  "scope": "Aprovação de escuta apenas dos seis takes apresentados em sequência; não aprova todas as falas futuras, mixagem nem sincronia no jogo.",
+  "comparison": "staging\\diction-review-v1\\comparacao-diccao.mp3",
+  "comparison_sha256": "9d100c8e4009f0662c625d1e343951c0794cc151921d24c92c25a8ac15f8ac91",
+  "localization_policy": "content/localization-policy.json",
+  "voices": [
+    {
+      "id": 116,
+      "speaker": "raziel",
+      "text_ptbr": "Saia, criatura!",
+      "audio_sha256": "88cf364b31eb8e29913dc91b8ae3bdc5af1c692e38eb6ef93a343156d5aa8808",
+      "comparison": "staging\\diction-review-v1\\0116-original-e-ia.mp3",
+      "comparison_sha256": "767e6a88b6d2466c19e8c252aed12067ff5cf35414a91ebc20f80dea2f0e17d1",
+      "approved_audio": true,
+      "human_listening_approved": true,
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 163,
+      "speaker": "rahab",
+      "text_ptbr": "Quando ele quer.",
+      "audio_sha256": "e91577aa78de87dce4272d0e57d917441471c611a577499d6a0d8e29bf7f066b",
+      "comparison": "staging\\diction-review-v1\\0163-original-e-ia.mp3",
+      "comparison_sha256": "b950812f2845f21808c4b77e37911d01ac8dd23e6a110b61d89faa274374d363",
+      "approved_audio": true,
+      "human_listening_approved": true,
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 173,
+      "speaker": "rahab",
+      "text_ptbr": "De nós mesmos.",
+      "audio_sha256": "fe3f8660db755ff4a7ca7c477140404cb1f1d912bc43d5dff78888d7e44c29d4",
+      "comparison": "staging\\diction-review-v1\\0173-original-e-ia.mp3",
+      "comparison_sha256": "8192792210b8e1579629503e26fdd7ec3ccac2b585a9d93072ff2898b9669733",
+      "approved_audio": true,
+      "human_listening_approved": true,
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 206,
+      "speaker": "raziel",
+      "text_ptbr": "Diga, Melchiah, onde encontro Kain?",
+      "audio_sha256": "fb70d0380ec39533c4834278c08de803b307b968592dd70d1ca725174d7e1ae9",
+      "comparison": "staging\\diction-review-v1\\0206-original-e-ia.mp3",
+      "comparison_sha256": "de1ea969f5ac14736820d8148d65153f80ca168ac6890fe972afbe4de1948bd5",
+      "approved_audio": true,
+      "human_listening_approved": true,
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 225,
+      "speaker": "tomb_guardian",
+      "text_ptbr": "Herege! Não passará!",
+      "audio_sha256": "5ab2902a51cb7581cf71455e87b9fff9aedb916b32614290b07f2213690df4a3",
+      "comparison": "staging\\diction-review-v1\\0225-original-e-ia.mp3",
+      "comparison_sha256": "2d0ff4321c20ea2df3b9de274ece190d30dd477ea17ef85dffe6b3c777dca05c",
+      "approved_audio": true,
+      "human_listening_approved": true,
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 307,
+      "speaker": "ariel",
+      "text_ptbr": "Ao norte da tumba Sarafan, uma abadia profanada definha, meio submersa.",
+      "audio_sha256": "0a2cfc6da04d87521d47318e02d6058219484812f58af779bfb60fb517e8e8f3",
+      "comparison": "staging\\diction-review-v1\\0307-original-e-ia.mp3",
+      "comparison_sha256": "7611ad46a989a0dc58b5e52f5a5bcb0a9ad80dc179eaffb00f934e5497a2291e",
+      "approved_audio": true,
+      "human_listening_approved": true,
+      "scene_trigger_verified": false
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Adaptações de falas que excederam a duração original; tomadas anteriores preservadas.",
+  "voices": [
+    {
+      "id": 128,
+      "speaker": "raziel",
+      "text_ptbr": "Fala com o assassino?"
+    },
+    {
+      "id": 310,
+      "speaker": "raziel",
+      "text_ptbr": "Senti Kain aqui. Naquele instante, eu desceria ao inferno para encontrá-lo."
+    },
+    {
+      "id": 315,
+      "speaker": "raziel",
+      "text_ptbr": "Poético, Kain. No fim, é só uma justificativa conveniente para seus crimes."
+    },
+    {
+      "id": 321,
+      "speaker": "moebius",
+      "text_ptbr": "Além dos limites do tempo, não vivemos no passado nem no futuro. Só há o agora."
+    },
+    {
+      "id": 323,
+      "speaker": "raziel",
+      "text_ptbr": "Desolação absoluta. Minha orgulhosa linhagem, varrida do mundo como excremento de uma bota."
+    },
+    {
+      "id": 327,
+      "speaker": "raziel",
+      "text_ptbr": "As portas do santuário não cediam. Barradas por dentro ou seladas pela ferrugem. Precisaria achar outra entrada."
+    },
+    {
+      "id": 340,
+      "speaker": "raziel",
+      "text_ptbr": "Minha sede de sangue deu lugar a uma fome mais sombria. Devorarei sua alma ainda hoje."
+    },
+    {
+      "id": 350,
+      "speaker": "raziel",
+      "text_ptbr": "Cataclismos assolam este mundo. A terra se contorce para expulsar a peste do império parasita de Kain."
+    },
+    {
+      "id": 359,
+      "speaker": "raziel",
+      "text_ptbr": "Perdeu-se num labirinto de relativismo moral, Kain. Estas aparições e presságios... Que jogo está fazendo?"
+    },
+    {
+      "id": 393,
+      "speaker": "kain",
+      "text_ptbr": "Finalmente. Estou decepcionado com seu progresso. Imaginei que chegaria antes. Diga: pesou em sua consciência matar seus irmãos?"
+    },
+    {
+      "id": 396,
+      "speaker": "elder",
+      "text_ptbr": "Volte aos Pilares, Raziel. A alma de Zephon lhe deu meios de entrar. Cuidado: estas ruínas vazias estão abandonadas, mas não desabitadas.",
+      "synthesis_text_ptbr": "Volte aos Pilares, Raziel. A alma de Zéfon lhe deu meios de entrar. Cuidado: estas ruínas vazias estão abandonadas, mas não desabitadas."
+    },
+    {
+      "id": 428,
+      "speaker": "raziel",
+      "text_ptbr": "Não aplaudirei sua blasfêmia engenhosa. Os Sarafan eram salvadores. Defendiam Nosgoth da corrupção que representamos. Meus olhos se abriram, Kain. Não vejo nobreza na não vida que impôs à força ao meu cadáver."
+    },
+    {
+      "id": 437,
+      "speaker": "elder",
+      "text_ptbr": "Cuidado, Raziel. Estes espectros são vampiros presos por tempo demais no reino espectral. Quando sua natureza se adapta a este plano, tornam-se devoradores de almas. Não os deixe voltar aos próprios cadáveres."
+    },
+    {
+      "id": 452,
+      "speaker": "raziel",
+      "text_ptbr": "A Soul Reaver. A antiga lâmina de Kain, mais velha que nós e mil vezes mais mortal. As lendas diziam que era possuída e vivia devorando as almas das vítimas. Apesar da bravata, sabíamos o que significava quando Kain a desembainhava com fúria. Você estava morto."
+    }
+  ]
+}

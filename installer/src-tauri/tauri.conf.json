@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Soul Reaver PT-BR Mod",
+  "version": "0.1.0",
+  "identifier": "com.soulreaver.ptbr",
+  "build": {
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Legacy of Kain: Soul Reaver — Dublagem PT-BR",
+        "width": 1240,
+        "height": 800,
+        "minWidth": 860,
+        "minHeight": 680,
+        "decorations": false,
+        "shadow": false,
+        "center": true,
+        "resizable": true,
+        "backgroundColor": "#0b1213"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

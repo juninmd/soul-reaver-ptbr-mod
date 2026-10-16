@@ -1,0 +1,354 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Primeiro lote da campanha com perfis aceitos; há variantes de falas no arquivo, sem alegação de acionamento natural de todas elas.",
+  "voices": [
+    {
+      "id": 103,
+      "speaker": "raziel",
+      "text_ptbr": "Que mais ele disse?"
+    },
+    {
+      "id": 116,
+      "speaker": "raziel",
+      "text_ptbr": "Mostre-se, criatura!"
+    },
+    {
+      "id": 126,
+      "speaker": "ariel",
+      "text_ptbr": "Nenhum jogo, Raziel.",
+      "cast_correction": "See staging/cast-audit-v1/corrections.json; earlier generated Kain takes are superseded."
+    },
+    {
+      "id": 129,
+      "speaker": "ariel",
+      "text_ptbr": "Nenhum jogo, Raziel.",
+      "cast_correction": "See staging/cast-audit-v1/corrections.json; earlier generated Kain takes are superseded."
+    },
+    {
+      "id": 134,
+      "speaker": "raziel",
+      "text_ptbr": "Que criaturas são essas?"
+    },
+    {
+      "id": 135,
+      "speaker": "ariel",
+      "text_ptbr": "Nenhum jogo, Raziel.",
+      "cast_correction": "See staging/cast-audit-v1/corrections.json; earlier generated Kain takes are superseded."
+    },
+    {
+      "id": 153,
+      "speaker": "kain",
+      "text_ptbr": "O Abismo foi cruel."
+    },
+    {
+      "id": 156,
+      "speaker": "elder",
+      "text_ptbr": "Muito bem, Raziel."
+    },
+    {
+      "id": 162,
+      "speaker": "elder",
+      "text_ptbr": "Você é digno."
+    },
+    {
+      "id": 165,
+      "speaker": "raziel",
+      "text_ptbr": "Que jogo é esse, Kain?"
+    },
+    {
+      "id": 166,
+      "speaker": "raziel",
+      "text_ptbr": "Que seres repulsivos são esses?"
+    },
+    {
+      "id": 169,
+      "speaker": "raziel",
+      "text_ptbr": "Por que assombra estes pilares?"
+    },
+    {
+      "id": 175,
+      "speaker": "raziel",
+      "text_ptbr": "Eu escolheria a integridade, Kain."
+    },
+    {
+      "id": 177,
+      "speaker": "raziel",
+      "text_ptbr": "Chega de enigmas. O que quer dizer?"
+    },
+    {
+      "id": 180,
+      "speaker": "raziel",
+      "text_ptbr": "Não quis perturbar seu descanso."
+    },
+    {
+      "id": 182,
+      "speaker": "raziel",
+      "text_ptbr": "É cedo para agradecer, Dumah.",
+      "synthesis_text_ptbr": "É cedo para agradecer, Dumá."
+    },
+    {
+      "id": 183,
+      "speaker": "elder",
+      "text_ptbr": "A escolha não é sua."
+    },
+    {
+      "id": 185,
+      "speaker": "raziel",
+      "text_ptbr": "Até o vampiro mais forte é vulnerável."
+    },
+    {
+      "id": 188,
+      "speaker": "raziel",
+      "text_ptbr": "Nos salvou de quê?"
+    },
+    {
+      "id": 191,
+      "speaker": "raziel",
+      "text_ptbr": "Não devo lealdade àquele maldito."
+    },
+    {
+      "id": 194,
+      "speaker": "raziel",
+      "text_ptbr": "Sabe o que éramos antes de Kain?"
+    },
+    {
+      "id": 195,
+      "speaker": "raziel",
+      "text_ptbr": "Pesou mandar me lançar no Abismo?"
+    },
+    {
+      "id": 197,
+      "speaker": "raziel",
+      "text_ptbr": "Eu conhecia a mão por trás daquilo."
+    },
+    {
+      "id": 200,
+      "speaker": "raziel",
+      "text_ptbr": "Anos depois, vinha nossa evolução."
+    },
+    {
+      "id": 203,
+      "speaker": "raziel",
+      "text_ptbr": "Sarafan, Rahab. Sarafan."
+    },
+    {
+      "id": 204,
+      "speaker": "kain",
+      "text_ptbr": "Meu filho rebelde voltou."
+    },
+    {
+      "id": 205,
+      "speaker": "raziel",
+      "text_ptbr": "Prefiro o esquecimento a viver assim."
+    },
+    {
+      "id": 206,
+      "speaker": "raziel",
+      "text_ptbr": "Diga, Melchiah, onde encontro Kain?",
+      "synthesis_text_ptbr": "Diga, Melquiá, onde encontro Kain?"
+    },
+    {
+      "id": 213,
+      "speaker": "raziel",
+      "text_ptbr": "Até que tive a honra de superar meu senhor."
+    },
+    {
+      "id": 215,
+      "speaker": "raziel",
+      "text_ptbr": "Mentira! Não podia prever tudo isso!"
+    },
+    {
+      "id": 216,
+      "speaker": "raziel",
+      "text_ptbr": "Meu pai? Você é só um ladrão de túmulos, Kain!"
+    },
+    {
+      "id": 219,
+      "speaker": "raziel",
+      "text_ptbr": "Você se perdeu em seu relativismo moral, Kain."
+    },
+    {
+      "id": 223,
+      "speaker": "kain",
+      "text_ptbr": "Voltou para abraçar seu destino, Raziel?"
+    },
+    {
+      "id": 224,
+      "speaker": "kain",
+      "text_ptbr": "O que criei, também posso destruir, criança."
+    },
+    {
+      "id": 233,
+      "speaker": "raziel",
+      "text_ptbr": "Sarafan, Rahab. O oposto de tudo em que acreditávamos."
+    },
+    {
+      "id": 235,
+      "speaker": "raziel",
+      "text_ptbr": "Impossível! Deve ser mais uma farsa de Kain!"
+    },
+    {
+      "id": 238,
+      "speaker": "raziel",
+      "text_ptbr": "Anos depois do mestre, vinha nossa evolução."
+    },
+    {
+      "id": 239,
+      "speaker": "elder",
+      "text_ptbr": "Visite outros portais antes que este se abra para você."
+    },
+    {
+      "id": 240,
+      "speaker": "elder",
+      "text_ptbr": "Recolha estes símbolos para repor a energia dos glifos."
+    },
+    {
+      "id": 243,
+      "speaker": "raziel",
+      "text_ptbr": "Espírito, não quis perturbar seu descanso."
+    },
+    {
+      "id": 245,
+      "speaker": "elder",
+      "text_ptbr": "Este artefato aumenta sua reserva de energia dos glifos."
+    },
+    {
+      "id": 247,
+      "speaker": "raziel",
+      "text_ptbr": "Os Sarafan eram salvadores. Defendiam Nosgoth de seres como nós."
+    },
+    {
+      "id": 248,
+      "speaker": "raziel",
+      "text_ptbr": "Prefiro integridade e equilíbrio a esta loucura."
+    },
+    {
+      "id": 252,
+      "speaker": "raziel",
+      "text_ptbr": "Este lugar, estes presságios... Que jogo você está fazendo?"
+    },
+    {
+      "id": 253,
+      "speaker": "raziel",
+      "text_ptbr": "A queda me destruíra. Ainda assim, eu vivia."
+    },
+    {
+      "id": 256,
+      "speaker": "elder",
+      "text_ptbr": "Esta chaminé permite chegar ao topo do santuário de Kain."
+    },
+    {
+      "id": 259,
+      "speaker": "raziel",
+      "text_ptbr": "Fui executado, não excomungado. Você aprenderá a diferença."
+    },
+    {
+      "id": 260,
+      "speaker": "elder",
+      "text_ptbr": "Não os reconhece? São os filhos de seu irmão Dumah.",
+      "synthesis_text_ptbr": "Não os reconhece? São os filhos de seu irmão Dumá."
+    },
+    {
+      "id": 262,
+      "speaker": "raziel",
+      "text_ptbr": "Estas aparições me atormentam. Tudo já estava previsto?"
+    },
+    {
+      "id": 264,
+      "speaker": "elder",
+      "text_ptbr": "Use seus novos dons para entrar onde antes não conseguia."
+    },
+    {
+      "id": 267,
+      "speaker": "raziel",
+      "text_ptbr": "Fui reduzido a isto? Um carniçal? Um fratricida?"
+    },
+    {
+      "id": 270,
+      "speaker": "raziel",
+      "text_ptbr": "Não vim salvar sua alma, mas tomá-la. Sua salvação é ser liberto."
+    },
+    {
+      "id": 271,
+      "speaker": "raziel",
+      "text_ptbr": "Maldito, Kain! Você não é Deus! Este genocídio é imperdoável!"
+    },
+    {
+      "id": 273,
+      "speaker": "raziel",
+      "text_ptbr": "Havia um único desfecho possível: minha condenação eterna."
+    },
+    {
+      "id": 274,
+      "speaker": "raziel",
+      "text_ptbr": "Impossível! Estas feras imundas não podem vir de nosso sangue nobre!"
+    },
+    {
+      "id": 278,
+      "speaker": "raziel",
+      "text_ptbr": "Por minha transgressão, ganhei uma nova recompensa: agonia."
+    },
+    {
+      "id": 280,
+      "speaker": "raziel",
+      "text_ptbr": "Já me matou uma vez. Veja o resultado. Não tenho mais por que temê-lo."
+    },
+    {
+      "id": 284,
+      "speaker": "raziel",
+      "text_ptbr": "Minha chegada a esta era miserável. Que artimanha é esta?"
+    },
+    {
+      "id": 285,
+      "speaker": "raziel",
+      "text_ptbr": "Rahab, você se adaptou bem ao ambiente, para alguém tão desajustado."
+    },
+    {
+      "id": 288,
+      "speaker": "elder",
+      "text_ptbr": "É inútil, Raziel. Estes objetos são sombras no mundo espiritual."
+    },
+    {
+      "id": 290,
+      "speaker": "elder",
+      "text_ptbr": "Não é ilusão, Raziel, mas um vislumbre das correntes do próprio tempo."
+    },
+    {
+      "id": 298,
+      "speaker": "kain",
+      "text_ptbr": "O destino é um jogo, não é? E agora você aguarda minha próxima jogada."
+    },
+    {
+      "id": 299,
+      "speaker": "raziel",
+      "text_ptbr": "Será esta visão fruto da minha mente, ou um eco de acontecimentos futuros?"
+    },
+    {
+      "id": 300,
+      "speaker": "elder",
+      "text_ptbr": "Você foi um Sarafan, Raziel. Veio da força que quase exterminou sua raça."
+    },
+    {
+      "id": 302,
+      "speaker": "raziel",
+      "text_ptbr": "Seu aspecto lhe cai bem, Zephon. É um reflexo adequado da sua alma.",
+      "synthesis_text_ptbr": "Seu aspecto lhe cai bem, Zéfon. É um reflexo adequado da sua alma."
+    },
+    {
+      "id": 433,
+      "speaker": "moebius",
+      "text_ptbr": "Raziel. Redentor e destruidor. Peão e messias. Bem-vinda, alma que atravessa o tempo. Bem-vindo ao seu destino."
+    },
+    {
+      "id": 471,
+      "speaker": "kain",
+      "text_ptbr": "Consciência? Ousa me falar de consciência? Só quando sentir todo o peso da escolha poderá questionar meu julgamento. Sua existência é um lampejo diante de toda a dúvida e do remorso que carrego desde que Mortanius me afastou da luz. Saber que o destino do mundo depende do acerto de cada ato meu... Consegue sequer imaginar o que faria em meu lugar?"
+    },
+    {
+      "id": 477,
+      "speaker": "kain",
+      "text_ptbr": "A eternidade é implacável, Raziel. Quando entrei escondido nesta câmara, séculos atrás, não compreendia o verdadeiro poder do conhecimento. Conhecer o futuro, Raziel. Ver seus caminhos e correntes se estendendo pelo infinito. Como homem, eu jamais suportaria verdades tão proibidas. Mas cada um de nós é muito mais do que era. Ao contemplar as planícies da possibilidade, não sente, com toda a sua alma, como nos tornamos deuses? E, sendo assim, não somos indivisíveis? Enquanto um de nós permanecer de pé, somos legião. É por isso que, quando preciso sacrificar meus filhos ao vazio, posso fazê-lo de coração tranquilo."
+    }
+  ]
+}

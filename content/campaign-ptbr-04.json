@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Falas identificadas de Dumah, Ariel e Guardião da Tumba; geração depende da aprovação das três amostras de perfil.",
+  "profiles_review_pending": true,
+  "voices": [
+    {"id":189,"speaker":"dumah","text_ptbr":"Você é persistente, Raziel."},
+    {"id":222,"speaker":"dumah","text_ptbr":"Vamos testar sua tese, Raziel."},
+    {"id":269,"speaker":"dumah","text_ptbr":"Livre, enfim. Eu agradeço, irmão."},
+    {"id":301,"speaker":"dumah","text_ptbr":"Veio salvar minha alma, irmão pródigo?"},
+    {"id":225,"speaker":"tomb_guardian","text_ptbr":"Herege! Você não passará!"},
+    {"id":292,"speaker":"tomb_guardian","text_ptbr":"Seus insultos não vão aliviar a agonia de sua morte."},
+    {"id":307,"speaker":"ariel","text_ptbr":"Ao norte da tumba Sarafan, uma abadia profanada definha, meio submersa."},
+    {"id":352,"speaker":"ariel","text_ptbr":"Então temos um inimigo em comum, Raziel. Volte quando precisar. Ariel lembra o que os outros esqueceram."},
+    {"id":369,"speaker":"ariel","text_ptbr":"Longe, nas montanhas do leste, um titã sufocado permanece em muda rendição, hospedeiro involuntário de um enxame parasita."},
+    {"id":386,"speaker":"ariel","text_ptbr":"Como um cadáver numa cova rasa, a corrupção vem à tona. Além destes Pilares, a vítima profanada grita sua revolta em silêncio."},
+    {"id":398,"speaker":"ariel","text_ptbr":"Nas entranhas de um mecanismo invertido, o algoz espera. Cuidado, Raziel. Os cegos pela fúria caem nas armadilhas do destino."},
+    {"id":405,"speaker":"ariel","text_ptbr":"Além dos penhascos que testemunharam sua execução, uma cidade silenciosa jaz imóvel. Presos num limbo eterno, esperam redenção ou libertação."},
+    {"id":443,"speaker":"ariel","text_ptbr":"Kain recusou o sacrifício. O Pilar do Equilíbrio, corrompido até o âmago, é um monumento à sua ambição cega. Agora estes Pilares só servem para me prender aqui: minha prisão e meu lar eterno, graças à avareza de seu mestre, Kain."},
+    {"id":461,"speaker":"ariel","text_ptbr":"Descanso? É preciso um corpo para dormir. Carne e ossos para repousar. Não, criança. Só posso observar e lembrar, consciente sem trégua, enquanto a história deste mundo miserável se desenrola. Passado horrendo, futuro insuportável... Serão a mesma coisa? Estou sempre aqui?"}
+  ]
+}

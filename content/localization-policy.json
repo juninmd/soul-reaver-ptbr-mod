@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "target_locale": "pt-BR",
+  "translation_direction": "Português brasileiro em vocabulário, gramática e construções, preservando o registro e a personalidade de cada personagem.",
+  "preferred_accents": ["paulista", "mineiro"],
+  "accent_direction": "Preferir, quando possível, traços leves e naturais; manter a identidade vocal e preservar as falas já aprovadas.",
+  "model_language": "Portuguese",
+  "regional_accent_selector_available": false,
+  "accent_validation": "Escuta humana; a configuração de idioma e o ASR não comprovam sotaque regional.",
+  "requested_by": "user",
+  "requested_at": "2026-10-15"
+}

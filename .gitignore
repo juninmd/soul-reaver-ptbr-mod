@@ -3,17 +3,23 @@ node_modules/
 target/
 dist/
 build/
+/installer/src-tauri/gen/
 coverage/
 test-results/
 .venv/
 __pycache__/
 *.pyc
+*.obj
+*.pdb
 
 # Local game data, generated candidates and models
 originals/
 backups/
 extracted/
 staging/
+validate/
+# Árvore produtiva do instalador (payloads binários; não versionar)
+modules/
 models/
 cache/
 *.dat

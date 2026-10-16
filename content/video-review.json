@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-10-15",
+  "reviewer": "user",
+  "response": "Prefiro a restaurada por IA",
+  "artifact": "validate\\03-video-1440p\\intro-1440p-realesrgan.mp4",
+  "artifact_sha256": "ad34014856a15e3f31a47b2a18080ff7af4fbdea7d3d24c98f57745d0fd96b8d",
+  "visual_sample_approved": true,
+  "chosen_method": "Real-ESRGAN realesrgan-x4plus scale4, conteúdo1920x1440 em2560x1440; legendasapósupscale",
+  "scope": "Preferência pela amostra comparada; não aprova automaticamente os 11 vídeos nem integração Bink, áudio completo ou campanha.",
+  "source_sha256": "8786078e1cd9f5938c766fb1e84db35fcde51f1f253ff463192e6314bad753ef",
+  "audio_sha256": "0e621ff61f243b69c52a07ea4ac1a5f7e32b874621110eaa2f0aedde6cd20c22",
+  "game_playback_verified": false
+}

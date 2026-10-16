@@ -1,0 +1,130 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Nova tomada com outra semente das 24 falas ainda sem seleção; candidatos anteriores preservados.",
+  "voices": [
+    {
+      "id": 116,
+      "speaker": "raziel",
+      "text_ptbr": "Saia, criatura!"
+    },
+    {
+      "id": 126,
+      "speaker": "kain",
+      "text_ptbr": "Sem jogos, Raziel."
+    },
+    {
+      "id": 133,
+      "speaker": "rahab",
+      "text_ptbr": "Kain disse que viria."
+    },
+    {
+      "id": 135,
+      "speaker": "kain",
+      "text_ptbr": "Nenhum jogo, Raziel."
+    },
+    {
+      "id": 156,
+      "speaker": "elder",
+      "text_ptbr": "Você foi bem, Raziel."
+    },
+    {
+      "id": 161,
+      "speaker": "rahab",
+      "text_ptbr": "De nós mesmos."
+    },
+    {
+      "id": 164,
+      "speaker": "melchiah",
+      "text_ptbr": "Bem-vindo, irmão!"
+    },
+    {
+      "id": 165,
+      "speaker": "raziel",
+      "text_ptbr": "Que jogo você faz, Kain?"
+    },
+    {
+      "id": 173,
+      "speaker": "rahab",
+      "text_ptbr": "De nós mesmos."
+    },
+    {
+      "id": 175,
+      "speaker": "raziel",
+      "text_ptbr": "Integridade, Kain."
+    },
+    {
+      "id": 182,
+      "speaker": "raziel",
+      "text_ptbr": "É cedo para agradecer, Dumah.",
+      "synthesis_text_ptbr": "É cedo para agradecer, Dumá."
+    },
+    {
+      "id": 200,
+      "speaker": "raziel",
+      "text_ptbr": "Anos depois, nós também evoluíamos."
+    },
+    {
+      "id": 203,
+      "speaker": "raziel",
+      "text_ptbr": "Sarafan, Rahab!"
+    },
+    {
+      "id": 206,
+      "speaker": "raziel",
+      "text_ptbr": "Melchiah, onde está Kain?",
+      "synthesis_text_ptbr": "Melquiá, onde está Kain?"
+    },
+    {
+      "id": 216,
+      "speaker": "raziel",
+      "text_ptbr": "Meu pai? Um ladrão de túmulos!"
+    },
+    {
+      "id": 224,
+      "speaker": "kain",
+      "text_ptbr": "Se criei, posso destruir, criança."
+    },
+    {
+      "id": 247,
+      "speaker": "raziel",
+      "text_ptbr": "Os Sarafan salvavam Nosgoth de seres como nós."
+    },
+    {
+      "id": 259,
+      "speaker": "raziel",
+      "text_ptbr": "Fui executado, não excomungado. Aprenda a diferença."
+    },
+    {
+      "id": 271,
+      "speaker": "raziel",
+      "text_ptbr": "Maldito, Kain! Não é Deus! Genocídio é imperdoável!"
+    },
+    {
+      "id": 281,
+      "speaker": "rahab",
+      "text_ptbr": "Raziel voltou. Ainda acha que pode me vencer?"
+    },
+    {
+      "id": 300,
+      "speaker": "elder",
+      "text_ptbr": "Foi um Sarafan, Raziel, da força que quase destruiu sua raça."
+    },
+    {
+      "id": 353,
+      "speaker": "raziel",
+      "text_ptbr": "Estive no túmulo dos Sarafan, Kain. Como pôde transformar um guerreiro Sarafan em vampiro?"
+    },
+    {
+      "id": 387,
+      "speaker": "melchiah",
+      "text_ptbr": "Sim, irmão. Devia ter ficado onde o mestre o mandou, Raziel. Nosgoth está menos agradável do que você lembra."
+    },
+    {
+      "id": 392,
+      "speaker": "elder",
+      "text_ptbr": "Com o dom de Melchiah, seu caminho se abriu. Volte à sede do império funesto de Kain. Seu silêncio estéril ainda guarda segredos.",
+      "synthesis_text_ptbr": "Com o dom de Melquiá, seu caminho se abriu. Volte à sede do império funesto de Kain. Seu silêncio estéril ainda guarda segredos."
+    }
+  ]
+}

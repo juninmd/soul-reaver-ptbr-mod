@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Correções de elenco e variantes identificadas, incluindo conteúdo cortado; presença no arquivo não comprova uso na campanha.",
+  "source_cast_reference": "https://legacyofkain.fandom.com/wiki/Legacy_of_Kain_Wiki:Legacy_of_Kain:_Soul_Reaver_transcript/Cut_content",
+  "human_listening_approved": false,
+  "voices": [
+    {
+      "id": 126,
+      "speaker": "ariel",
+      "text_ptbr": "Nenhum jogo, Raziel.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 129,
+      "speaker": "ariel",
+      "text_ptbr": "Nenhum jogo, Raziel.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 135,
+      "speaker": "ariel",
+      "text_ptbr": "Nenhum jogo, Raziel.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 120,
+      "speaker": "raziel",
+      "text_ptbr": "Você fala com Kain?",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 163,
+      "speaker": "rahab",
+      "text_ptbr": "Quando ele quer.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 176,
+      "speaker": "raziel",
+      "text_ptbr": "Agora vai conhecê-los.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 181,
+      "speaker": "kain",
+      "text_ptbr": "Afinal, você tem algo de seu pai.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 202,
+      "speaker": "elder",
+      "text_ptbr": "Um milênio... ou um instante?",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 211,
+      "speaker": "dumah",
+      "text_ptbr": "Não pode me escapar, Raziel.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 227,
+      "speaker": "raziel",
+      "text_ptbr": "Minha fé no destino basta para vencer.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 228,
+      "speaker": "raziel",
+      "text_ptbr": "Maldito! Por quantas eras me prendeu?",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 234,
+      "speaker": "raziel",
+      "text_ptbr": "Estes Pilares ainda têm alguma função em nossa época?",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 261,
+      "speaker": "ariel",
+      "text_ptbr": "Só a verdade. Acredite em mim, Raziel. Acredite.",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 304,
+      "speaker": "raziel",
+      "text_ptbr": "Sinto água. Diga: como Rahab, aprendeu a nadar nestas eras?",
+      "scene_trigger_verified": false
+    },
+    {
+      "id": 410,
+      "speaker": "ariel",
+      "text_ptbr": "Raziel, sou sua única esperança. Só meu espírito pode dar à Soul Reaver o poder de destruir Kain e restaurar o equilíbrio de Nosgoth. Você sabe que é verdade.",
+      "scene_trigger_verified": false
+    }
+  ]
+}

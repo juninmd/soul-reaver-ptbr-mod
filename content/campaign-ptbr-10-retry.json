@@ -1,0 +1,62 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Redação mais curta ou dicção ajustada, preservando o sentido; versões anteriores mantidas.",
+  "voices": [
+    {
+      "id": 116,
+      "speaker": "raziel",
+      "text_ptbr": "Mostre-se!"
+    },
+    {
+      "id": 120,
+      "speaker": "raziel",
+      "text_ptbr": "Você fala com Kain?"
+    },
+    {
+      "id": 126,
+      "speaker": "ariel",
+      "text_ptbr": "Sem jogos, Raziel."
+    },
+    {
+      "id": 129,
+      "speaker": "ariel",
+      "text_ptbr": "Sem jogos, Raziel."
+    },
+    {
+      "id": 163,
+      "speaker": "rahab",
+      "text_ptbr": "Quando ele desejar."
+    },
+    {
+      "id": 173,
+      "speaker": "rahab",
+      "text_ptbr": "De nós próprios."
+    },
+    {
+      "id": 206,
+      "speaker": "raziel",
+      "text_ptbr": "Onde posso encontrar Kain?"
+    },
+    {
+      "id": 225,
+      "speaker": "tomb_guardian",
+      "text_ptbr": "Herege! Não passará!"
+    },
+    {
+      "id": 307,
+      "speaker": "ariel",
+      "text_ptbr": "Ao norte da tumba Sarafan, uma abadia profanada jaz meio submersa."
+    },
+    {
+      "id": 227,
+      "speaker": "raziel",
+      "text_ptbr": "A fé no destino me basta para vencer."
+    },
+    {
+      "id": 261,
+      "speaker": "ariel",
+      "text_ptbr": "Só a verdade. Creia em mim, Raziel. Creia."
+    }
+  ]
+}

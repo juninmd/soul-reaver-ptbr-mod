@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Uma comparação por novo personagem antes de produzir suas demais falas.",
+  "voices": [
+    {"id":378,"speaker":"melchiah","text_ptbr":"O mestre está além do seu alcance, Raziel. Ele se revela quando quer, não quando é chamado."},
+    {"id":257,"speaker":"zephon","text_ptbr":"O filho pródigo! Não há volta para você, Raziel!"},
+    {"id":349,"speaker":"rahab","text_ptbr":"Não zombe de mim, Raziel. Você, mais que todos, deveria respeitar o poder de uma limitação superada."}
+  ]
+}

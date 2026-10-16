@@ -1,0 +1,159 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "AdaptaÃ§Ãµes de duraÃ§Ã£o e clareza do primeiro lote; versÃµes anteriores preservadas.",
+  "voices": [
+    {
+      "id": 103,
+      "speaker": "raziel",
+      "text_ptbr": "Que mais ele contou?"
+    },
+    {
+      "id": 116,
+      "speaker": "raziel",
+      "text_ptbr": "Saia, criatura!"
+    },
+    {
+      "id": 126,
+      "speaker": "kain",
+      "text_ptbr": "Jogo algum, Raziel."
+    },
+    {
+      "id": 134,
+      "speaker": "raziel",
+      "text_ptbr": "Que criaturas sÃ£o essas?"
+    },
+    {
+      "id": 151,
+      "speaker": "raziel",
+      "text_ptbr": "Fui destruído!"
+    },
+    {
+      "id": 156,
+      "speaker": "elder",
+      "text_ptbr": "VocÃª foi bem, Raziel."
+    },
+    {
+      "id": 165,
+      "speaker": "raziel",
+      "text_ptbr": "Que jogo vocÃª faz, Kain?"
+    },
+    {
+      "id": 175,
+      "speaker": "raziel",
+      "text_ptbr": "Prefiro integridade, Kain."
+    },
+    {
+      "id": 177,
+      "speaker": "raziel",
+      "text_ptbr": "Chega de enigmas. Explique-se!"
+    },
+    {
+      "id": 180,
+      "speaker": "raziel",
+      "text_ptbr": "NÃ£o queria perturbar seu descanso."
+    },
+    {
+      "id": 185,
+      "speaker": "raziel",
+      "text_ptbr": "Mesmo o mais forte Ã© vulnerÃ¡vel."
+    },
+    {
+      "id": 195,
+      "speaker": "raziel",
+      "text_ptbr": "Sofreu ao me mandar ao Abismo?"
+    },
+    {
+      "id": 200,
+      "speaker": "raziel",
+      "text_ptbr": "Anos depois, nÃ³s tambÃ©m evoluÃ­amos."
+    },
+    {
+      "id": 203,
+      "speaker": "raziel",
+      "text_ptbr": "Sarafan, Rahab! Sarafan!"
+    },
+    {
+      "id": 206,
+      "speaker": "raziel",
+      "text_ptbr": "Melchiah, onde estÃ¡ Kain?",
+      "synthesis_text_ptbr": "MelquiÃ¡, onde estÃ¡ Kain?"
+    },
+    {
+      "id": 213,
+      "speaker": "raziel",
+      "text_ptbr": "AtÃ© ter a honra de superar meu senhor."
+    },
+    {
+      "id": 215,
+      "speaker": "raziel",
+      "text_ptbr": "Mentira! NÃ£o podia prever isso!"
+    },
+    {
+      "id": 216,
+      "speaker": "raziel",
+      "text_ptbr": "Meu pai? Ã‰ sÃ³ um ladrÃ£o de tÃºmulos, Kain!"
+    },
+    {
+      "id": 224,
+      "speaker": "kain",
+      "text_ptbr": "Se criei, posso destruir, crianÃ§a."
+    },
+    {
+      "id": 233,
+      "speaker": "raziel",
+      "text_ptbr": "Sarafan, Rahab. O oposto de nossa fÃ©."
+    },
+    {
+      "id": 235,
+      "speaker": "raziel",
+      "text_ptbr": "ImpossÃ­vel! Outra farsa de Kain!"
+    },
+    {
+      "id": 247,
+      "speaker": "raziel",
+      "text_ptbr": "Os Sarafan salvavam Nosgoth de seres como nÃ³s."
+    },
+    {
+      "id": 252,
+      "speaker": "raziel",
+      "text_ptbr": "Este lugar, estes sinais... Que jogo Ã© esse?"
+    },
+    {
+      "id": 259,
+      "speaker": "raziel",
+      "text_ptbr": "Fui executado, nÃ£o excomungado. Aprenda a diferenÃ§a."
+    },
+    {
+      "id": 260,
+      "speaker": "elder",
+      "text_ptbr": "NÃ£o reconhece? SÃ£o filhos do seu irmÃ£o Dumah.",
+      "synthesis_text_ptbr": "NÃ£o reconhece? SÃ£o filhos do seu irmÃ£o DumÃ¡."
+    },
+    {
+      "id": 262,
+      "speaker": "raziel",
+      "text_ptbr": "Estas visÃµes me atormentam. JÃ¡ estava previsto?"
+    },
+    {
+      "id": 270,
+      "speaker": "raziel",
+      "text_ptbr": "Vim tomar sua alma, nÃ£o salvÃ¡-la. SÃ³ a libertaÃ§Ã£o o salvarÃ¡."
+    },
+    {
+      "id": 271,
+      "speaker": "raziel",
+      "text_ptbr": "Maldito, Kain! NÃ£o Ã© Deus! GenocÃ­dio Ã© imperdoÃ¡vel!"
+    },
+    {
+      "id": 274,
+      "speaker": "raziel",
+      "text_ptbr": "ImpossÃ­vel! Essas feras nÃ£o podem vir do nosso sangue!"
+    },
+    {
+      "id": 300,
+      "speaker": "elder",
+      "text_ptbr": "VocÃª foi um Sarafan, Raziel. Veio da forÃ§a que quase destruiu sua raÃ§a."
+    }
+  ]
+}

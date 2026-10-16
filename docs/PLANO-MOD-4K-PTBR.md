@@ -1,194 +1,140 @@
-# Plano: Soul Reaver clássico em 4K com dublagem PT-BR local
+# Plano de execução — Soul Reaver clássico 100% PT-BR, 3D 4K e vídeo HD
 
-Data da inspeção: 14/10/2026. Estado: planejamento; nenhuma alteração nos arquivos originais do jogo, instalação de ferramentas ou execução do jogo foi realizada nesta etapa.
+Atualizado em 16/10/2026. Este documento substitui o escopo anterior. Ele é um plano de engenharia e validação; não declara o mod funcional, a campanha completa ou uma distribuição pronta. A instalação Steam original e os saves são entradas imutáveis. Todo teste destrutivo ocorre em cópia isolada, com materiais humanos e capturas em `validate/` (fora do Git).
 
-Decisão de 14/10/2026: manter o projeto no GitHub em `juninmd/soul-reaver-ptbr-mod` e desenvolver um instalador desktop em Tauri 2, React, TypeScript, Vite e Tailwind CSS. O instalador faz parte do plano; ainda não foi implementado.
+Diretriz de execução vigente: trabalhar offline e só abrir o jogo após autorização explícita do usuário. Usar subagents GPT-6 Luna em tarefas delimitadas. Builds, verificação de arquivos e hosts offscreen são permitidos; não substituem a rodada no jogo.
 
-## Objetivo e escopo
+### Avanço offline mais recente
 
-Criar um mod para a instalação Steam clássica de Legacy of Kain: Soul Reaver, com renderização 3D em 3840×2160, apresentação sem distorção, tradução dos diálogos efetivamente presentes na campanha e dublagem em português brasileiro com uma voz de IA distinta e consistente por personagem. Incluir falas em vídeos, narração, diálogos opcionais e falas repetíveis que tenham conteúdo verbal. Acrescentar legendas PT-BR sincronizadas como instrumento de acessibilidade e conferência.
+- **Fonte de verdade única por módulo:** os candidatos foram promovidos de `staging/packages/local-full-v1` e do material de texturas para a árvore produtiva `modules/` (`voices`, `localization`, `video`, `graphics`, `textures`, `ui` + `bundle.json`). Cada módulo é auto-contido (manifesto + payloads no mesmo diretório). O instalador resolve `modules/` primeiro (override `SRMOD_MODULES`), o vídeo virou componente com journal próprio (`video-state.json`) separado de `localization` (`assets-state.json`), e `validate/` deixou de guardar payload oficial. Testes: core 34, instalador 1, `pnpm build`, empacotador 9/9 e o verificador offline com `--bundle modules` passou preservando executável, save e DLL de terceiros. Mapa e comandos em [`MODULOS.md`](MODULOS.md); evidência em `validate/98-modulos-produtivos/`. Permanece offline: nada foi executado no jogo.
+- Instalador por componente concluído no projeto Tauri/Rust: journal próprio para os gráficos 4K (dgVoodoo + patch Hor+ 16:9 com backup do `kain2.exe`), componente externo genérico para texturas HD e interface, ações de instalar/reparar/restaurar e painel de diagnóstico. 23 testes do core passam; `pnpm --dir installer build` e o build do Tauri passam.
+- Bundle local completo montado em `staging/packages/local-full-v1` (230 falas, 11 arquivos de localização, wrapper 4K em 3840×2160 em janela) por `tools/build_full_bundle.py`, que verifica o hash de todas as entradas.
+- Teste de aceitação offline com cópia limpa reconstruída dos originais: `tools/verify_installer_offline.py` aplica vozes + localização + 4K/widescreen, recusa um `DDraw.dll` estranho, restaura e confirma que o executável voltou ao SHA original, que o save real não mudou e que uma DLL de outro mod sobreviveu. Resultado em `validate/17-instalador/installer-offline-report.json`.
+- Lote de texturas HD das 1.287 páginas em produção resumível (`tools/graphics/run_hd_texture_batch.py`). Continua material de revisão: uma POC Frida/WARP no host sintético passou 11 checks com a página #4 após recompilar e fixar os hashes atuais. Isso prova o callback naquele formato sintético, mas ainda não o SRV, UV, alpha ou a integração do loader no jogo; o componente de texturas segue experimental. Evidência: `validate/19-texturas-loader/POC-WARP-2026-10-16.md`.
+- Pacote candidato de interface/HUD empacotado como componente instalável experimental (`ui.json` + catálogo NFC de 224 ids + `hd-ui-cache.dll` x86), verificado pelo core real, mas **não integrado ao jogo**: faltam 7 hooks nativos e o mapeamento dos menus/HUD. Evidência: `validate/13-ui-hud-candidato/INTEGRACAO.md`.
+- 60 FPS: análise estática localizou o relógio de quadro — integrador com `incremento = delta_ms*4096/33` (magia `0x3E0F83E1`) e quantum `0x1000`, isto é **1 passo = 33,0 ms = 30,303 Hz**, exatamente a taxa medida. Nenhum patch foi aplicado e não há correção defensável sem o gate passo→Present. Evidência: `validate/16-60fps/RELATORIO.md`.
+- Renderer x86 de texto dinâmico: UTF-8 estrito, glifos pt-BR, painel, troca e limpeza de legendas testados em D3D11 WARP 3840×2160. O host consultou restauração de RTV e viewport; os outros estados não foram consultados. A integração no jogo permanece pendente.
+- As 230 legendas selecionadas geram 266 páginas, todas aceitas pelo verificador GDI do renderer. O texto completo fica preservado em NFC. Tempos de leitura e sincronia ainda exigem runtime.
+- Catálogo candidato de UI: 224 IDs, com 161 textos traduzidos, 59 rótulos de tecla, dois símbolos e duas entradas vazias. Preserva os tokens de ícones; tradução e integração aguardam revisão. Não corresponde a 224 textos instalados no jogo.
+- Pipeline de vídeo: saída exclusiva, verificação de cadência e contagem, alinhamento explícito de áudio e ASS; teste curto com seis quadros reais passou também pela rota Real-ESRGAN.
+- Dez páginas selecionadas por variedade visual em um catálogo offline de 1.287 índices foram ampliadas de 256×256 para 1024×1024 com Real-ESRGAN. O pacote inclui originais RGB, candidatas, RAWs e hashes; bit 15 foi mantido sem interpretação. A página 4 também tem prova direta de readback no cache WARP. A ponte Frida/WARP passa agora no host sintético (11 checks); formato de SRV do loader real, UV, alpha e aparência dentro do jogo continuam sem prova. Este é um lote de revisão, não um pacote completo.
+- Renderer de UI/HUD em canvas 3840×2160 implementado, com UTF-8/NFC, cores RGBA, limites e cache de texto. O host offscreen passou; as 266 páginas de legendas também passaram no renderer atualizado. A demonstração usa textos ilustrativos; falta integrar menus, HUD e ícones reais.
+- Diagnóstico estático verificou as referências do cálculo de tempo. O global `0xC66F3C` recebe `1` na inicialização; não há justificativa para um patch que apenas o ligue. Os 60 FPS continuam pendentes.
 
-A preferência confirmada é gerar as vozes localmente. O jogador receberá os áudios prontos: não precisará executar IA, ter GPU NVIDIA ou manter conexão para jogar. Downloads iniciais de ferramentas e modelos serão necessários no ambiente de produção; a síntese deverá funcionar offline depois disso.
+Evidências: `validate/10-candidato-offline/`, `validate/02-legendas-unicode/runtime-v2/`, `validate/09-interface-unicode/`, `validate/12-texturas-hd-candidato/`, `validate/13-ui-hud-candidato/`, `validate/14-texture-catalog/` e `validate/17-instalador/` (instalador por componente e teste offline). O perfil de configuração 60 FPS não resolveu a limitação observada anteriormente; nenhum patch de temporização foi aplicado.
 
-Ficam fora da primeira versão: remasterização de modelos e texturas, ray tracing, refazer animações labiais, Soul Reaver 2, a edição Remastered e conteúdo cortado que não participa da campanha desta edição. Upscale dos vídeos é uma expansão opcional; traduzir suas falas faz parte do escopo principal. Tradução de menus e tutoriais escritos será uma expansão separada, sem ser confundida com cobertura dos diálogos.
+## Resultado pretendido e linha de chegada
 
-## Evidências locais
+Direção dos vídeos em 15/10/2026: o usuário escolheu a amostra Real-ESRGAN em `validate/03-video-1440p/intro-1440p-realesrgan.mp4`, registrada por hash em `content/video-review.json`. Preservar essa configuração para as próximas POCs. A preferência visual não substitui integração HD no player, testes individuais ou escuta integral.
 
-| Item | Constatação |
+Atualização da direção em 15/10/2026: o usuário aprovou visualmente o trecho 3D em `validate/06-render-4k/trecho-4k.mp4` e pediu pelo menos 60 FPS. A aprovação está fixada pelo hash em `content/graphics-review.json`. Acrescentar 60 FPS reais ao objetivo de renderização; a captura esparsa da primeira POC não comprova desempenho. A próxima POC deve medir apresentação sem o custo de readback e validar física, velocidade de animação, temporizadores e sincronização das falas. Interpolação de vídeo não conta como 60 FPS do jogo.
+
+Entregar uma versão local reproduzível de Legacy of Kain: Soul Reaver clássico com:
+
+- campanha, falas opcionais, repetíveis, narração e diálogos de FMV catalogados e traduzidos para pt-BR natural;
+- vozes locais distintas por personagem, mantendo as vozes aprovadas nos IDs 116, 163, 173, 206, 225 e 307; os hashes correspondentes vêm de `content/dialogue-review.json`;
+- renderização 3D em 3840×2160, sem esticar a imagem, com texturas novas de personagens e cenários, HUD, menus, dicas e legendas nítidos;
+- caracteres acentuados e símbolos corretos em fonte, UI e legendas;
+- vídeos tratados em pelo menos 2560×1440, preservando conteúdo 4:3 em 1920×1440 com barras laterais, com trilha PT-BR quando houver fala;
+- aplicação, reparo e restauração seguros em cópia de teste, sem exigir IA, CUDA ou conexão no computador do jogador.
+
+“Concluído” exige evidência humana e de runtime por requisito: matriz de cobertura dos 479 slots e eventos de FMV, captura jogável em janela visível, comparação de resolução e proporção, escuta dos áudios, legendas legíveis, teste de instalação/restauração e rollback. Build, catálogo, render sintético, reprodução instrumentada ou pipeline pendente são apenas evidência parcial.
+
+## Escopo e limites
+
+| Dentro | Fora desta etapa |
 |---|---|
-| Instalação | Steam AppID 224920; manifesto local com buildid 23388 e idioma english |
-| Executável | kain2.exe, PE x86, 1.080.832 bytes; sem versão legível nos metadados consultados |
-| Recursos | voices.dat, music.dat, bigfile.dat, textures.big, locals.pc e patch001.dat |
-| Vídeos | 11 arquivos .bik; todos têm vídeo Bink e uma faixa de áudio estéreo a 44.100 Hz |
-| Intro | intro.bik: 640×480, aproximadamente 210,94 segundos |
-| Outros vídeos | chrono3/5/7/9/11/13 em 640×480; créditos, logos e verse.bik em 320×240 |
-| Hardware | Ryzen 7 5700X, RTX 4060 Ti com 16.380 MiB reportados por nvidia-smi, aproximadamente 32 GB de RAM |
-| Exibição atual | 2560×1440; capacidade física máxima do monitor não foi verificada |
-| Ferramentas encontradas | FFmpeg, ffprobe, uv, Python 3.14 e Node; rea não foi encontrado no PATH |
-| Unsloth | Instalação informada pelo usuário; launcher encontrado no PATH do ambiente de produção; backend, versão e ambiente CUDA ainda não validados |
+| Jogo clássico Steam identificado por hash; jogo em janela visível; 3D 4K; texturas externas HD; HUD/menu/legendas; vídeos HD; localização e vozes PT-BR; instalador Tauri/Rust | Executáveis/DAT/BIG/BIK originais, saves, pesos ou referências vocais no Git; exigir IA ao jogador; publicar jogo/mod; alterar a instalação Steam original |
+| POCs de competência antes do lote; Unsloth existente como opção de texto e eventual fine-tuning TTS | Chamar Unsloth de restaurador de vídeo; alterar ambiente existente; prometer upscale sem comparar qualidade e compatibilidade |
+| Preservação das vozes aprovadas e revisão humana de pt-BR | Remasterização de malha, ray tracing, conteúdo cortado ou outra edição de Soul Reaver |
 
-A presença do readme do patch 1.2 não comprova a versão efetiva do executável. Fixar compatibilidade pelo hash, não pelo nome do arquivo.
+## Fatos observados e limites atuais
 
-SHA-256 da base inspecionada:
+| Área | Evidência atual | Consequência |
+|---|---|---|
+| Base | `kain2.exe` SHA-256 `9793031080e606075d7af51d7232c12494449a87fe120675e0c80c318c89a30a`; Steam já está em V6 | Fixar compatibilidade por hash e preservar V6 |
+| Vozes | V6 live: 230/479 slots; 249 não substituídos. Isso não é percentual de cobertura da campanha | P0 separa `grunt`, cena, duplicata e evento real |
+| FMV | Oito FMV de história estão em teste PT-BR; `verse.bik` é 320×240 e os outros sete são 640×480; existem 11 BIK no total, incluindo logos/créditos visuais | Catalogar cada BIK por quadros, FPS, duração, áudio e runtime; texto de créditos/cartelas em inglês também entra no escopo |
+| UI/texto | 159 substituições em 224 strings; há hardcoded, HUD e créditos; `tools/build_dialogue_subtitles.py` remove acentos; `tools/subtitles/runtime.cpp` rejeita não-ASCII; `tools/localize_ui.py` possui bytes altos de fonte/ícones | P1 corrige Unicode ponta a ponta sem omitir strings não substituídas |
+| Texturas | Mini-mod STF911 em `staging/texture-mini-review-v1/inspection.json`: 22/1287 atlas, 256×256 ARGB1555, cabeçalho 4096, página 131072; não é HD | P3 prova carregador externo/upload GPU maior, UV/alpha e asset nativo recriado |
+| 4K | `validate/06-render-4k/report.json` confirma run10 viewport/draw target 3840×2160, formato GPU 27, 79 amostras e 80 quadros; VFR, sem áudio, textura original e legenda proxy desabilitada | P2 já prova viewport/captura, mas gameplay, efeitos, menus/HUD e texturas HD continuam pendentes |
+| Vídeo | Meta: 2560×1440, conteúdo 4:3 1920×1440 com barras | P4 compara Lanczos e Real-ESRGAN em trecho curto (amostra atual: 6 s) |
+| Widescreen | `0xEB354` RVA `0xEC354`: float 0.625→0.46875, somente memtest | Validar proporções e câmera em runtime |
+| Distribuição | ModDB reconhece chefes Bright; exige crédito e aviso antes da distribuição | Registrar licença/crédito/headsup; não publicar nesta fase |
 
-```text
-kain2.exe    9793031080E606075D7AF51D7232C12494449A87FE120675E0C80C318C89A30A
-voices.dat   E2A193B62F9723F5F477F705C53A56F895375CE2D980D276D0D0FCEEB2645DF5
-bigfile.dat  30295BB8BDD059A3001F4B30D68973FD2E6A3AE50EA444087C8A17E94ADEB035
-locals.pc    2244304CBF1D89F7AAEE44C534CF185C0FFD037272DEEE909247727BE1D54D84
-```
+Fontes e versões ficam em [`REFERENCES.md`](../REFERENCES.md). A validação de áudio existente está em [`VALIDACAO-REINSERCAO-VOZ.md`](VALIDACAO-REINSERCAO-VOZ.md).
 
-## Caminho técnico escolhido
+## Decisões técnicas
 
-### Renderização
+- Usar Rust no core/CLI e Tauri 2 + React/TypeScript/Vite/Tailwind no instalador. O jogador recebe assets prontos.
+- Usar dgVoodoo explicitamente em `3840×2160`; `max` não significa 4K e a tela disponível é 1440p. POCs e capturas rodam em janela visível.
+- Texturas HD ficam externas; os atlas BIG 256 são referência de formato, não fonte de textura 4K. P3 deve provar carregador externo/upload GPU maior, UV/alpha e assets nativos recriados para HUD/menu.
+- Vídeo: trecho curto (amostra atual: 6 s) com áudio preservado, comparação Lanczos/Real-ESRGAN, legenda aplicada depois do upscale; prova offline separada da prova Bink HD.
+- Unsloth pode ser usado com o ambiente já instalado para inferência de texto e, somente se uma POC medir ganho, fine-tuning TTS. Não reinstalar, migrar ou exigir Unsloth ao jogador.
+- Tradução e síntese passam por revisão humana; ASR é alarme auxiliar e nunca aceita grunhidos como fala PT-BR. Preservar hashes, metadados de direção e arquivos aprovados.
 
-Começar com dgVoodoo2 x86, instalado somente na cópia de trabalho, para intermediar a API gráfica antiga e testar resolução interna 4K. A documentação do autor descreve substituição de resolução e alerta para distorções entre menus, vídeos e jogo. Isso é capacidade da ferramenta, não compatibilidade já comprovada nesta instalação. [Documentação oficial, consultada em 14/10/2026](https://www.dege.freeweb.hu/dgVoodoo2/ReadmeGeneral/).
+## Milestones e gates
 
-Tratar resolução, câmera e HUD como tarefas diferentes. O alvo principal é 3840×2160 em 16:9 com proporções corretas. Se a câmera original exigir correção, investigar o cálculo de projeção e o recorte de objetos antes de aplicar um patch mínimo. Manter um perfil de compatibilidade 4:3: área útil de 2880×2160 centralizada numa saída 3840×2160, com barras laterais. Esse perfil não substitui a aceitação do alvo 16:9.
+| Etapa | Dono | Depende de | Artefato | Prova de saída |
+|---|---|---|---|---|
+| P0 | inventário/preservação | nenhuma | matriz, hashes, `steam-before.json` | cópia isolada e eventos reconciliados |
+| P1 | texto/fonte/UI | P0 | corpus NFC, fonte-atlas, catálogo de 224 strings | captura com acentos/símbolos |
+| P2 | render/runtime | P0 | perfil dgVoodoo, captura 15–30 s, logs | draw target 3840×2160 e proporções |
+| P3 | assets/runtime | P2 | pacote externo HD, atlas/UV report | personagens/cenários/HUD em runtime |
+| P4 | vídeo/runtime | P0, P2 | pares Lanczos/Real-ESRGAN, 11 manifests | cada BIK medido e executado ou player alternativo HD |
+| P5 | localização/voz | P0, P1, P2, P4 | fatia vertical PT-BR, metadados de direção | escuta humana e cena natural |
+| P6 | produção/QA | P3, P5 | lotes de áudio, texturas, UI e vídeos | campanha e matriz integral |
+| P7 | Tauri/Rust | P6 | instalador, journal, pacote por componente | apply/restore em cópia limpa |
 
-Não ativar 60 FPS junto com a primeira mudança de resolução. Primeiro manter a cadência original observada; qualquer aumento de FPS terá validação própria de física, combate, puzzles, câmera e sincronização. Tampouco empilhar vários patches comunitários de uma vez. Cada dependência deverá ter origem, versão, hash, compatibilidade e termos de distribuição registrados.
+### P0 — Inventário, preservação e matriz de cobertura
 
-Na tela atualmente configurada em 1440p, verificar 4K interno com evidência da superfície de renderização; uma captura ampliada não basta. Fazer também um teste de saída em monitor/TV 4K para comprovar a apresentação final nessa condição. Texturas antigas e vídeos de baixa resolução não ganham detalhe original apenas por aumentar a resolução de saída.
+Inventariar base, saves, resolução, 479 slots, todos os 11 BIK e 224 strings, incluindo hardcoded, HUD, créditos, texto de cartelas e English credits. Criar matriz por cena/evento com classificação `grunt`, fala de cena, duplicata, não verbal, `cut` (somente com prova) e FMV; registrar acionamento natural, pausa, skip, load e retorno. Produzir `steam-before.json`, hashes e cópia isolada. Gate: zero escrita na Steam original; matriz reconciliada com offsets, eventos e vídeos, sem usar 230/479 como percentual de campanha.
 
-### Extração e identificação das falas
+### P1 — Unicode, fontes, UI e legendas
 
-Usar The Sound of Her Wings e seu código disponível como referência de decodificação para voices.dat. A documentação registra cortes heurísticos, incluindo trechos unidos ou fragmentados; por isso cada WAV extraído precisa ser conciliado com as solicitações reais do jogo. Soul Spiral serve à investigação de recursos de bigfile.dat. Nenhuma dessas referências comprova um caminho de reinserção. [The Sound of Her Wings, atualizado em 18/02/2012](https://www.thelostworlds.net/Software/The_Sound_of_Her_Wings.html), [extração de áudio PC, atualizado em 18/02/2007](https://www.thelostworlds.net/HowTo/Extract_Soul_Reaver_Audio_PC.html).
+Proibir UTF-8 direto na fonte legada: corrigir bytes altos de fonte/ícones e usar renderer novo/fonte-atlas com Unicode canônico NFC; remover a perda de acentos do gerador de legendas; aceitar caracteres especiais no renderer e em menus/dicas. Gate: corpus pt-BR com `áéíóúãõçÀÉ…`, símbolos e nomes próprios aparece corretamente em janela 1080p/1440p/4K, sem rejeição, truncamento ou fallback ilegível.
 
-Usar REA com um provedor nativo compatível, como Ghidra, para localizar no executável as rotinas de leitura, identificação e reprodução de fala. O projeto oferece inspeção de assembly, pseudocódigo e referências; sua documentação indica limitações específicas de provedores, inclusive suporte experimental de Ghidra no Windows. Não existe evidência de suporte pronto a Soul Reaver. Registrar versão do REA, provedor e evidências de cada conclusão. [REA, documentação consultada em 14/10/2026](https://github.com/morluto/rea).
+### P2 — POC de 3D 4K e câmera
 
-O trabalho decisivo é obter uma identidade estável por evento de fala: ID, offset e tamanho, ou outra chave demonstrada no runtime. A posição aproximada de um WAV extraído não será usada como identidade final.
+Em janela visível, obter superfície/draw target 3840×2160 na GPU, capturar clipe de 15–30 s e medir frame pacing, HUD, água, transparência, menus e retorno de FMV. Testar dgVoodoo com resolução explícita; testar o offset de câmera 0.625→0.46875 apenas em cópia. Gate: captura e log verificam 3840×2160 e proporção correta; se a tela física for 1440p, registrar que é render interno.
 
-### Reprodução do mod
+### P3 — Texturas externas HD, personagens/cenários e interface
 
-Preferir uma camada pequena de substituição de fala x86, acionada pelos eventos do jogo, com áudios externos pré-gerados. Assim, ajustes de tradução não exigem remontar grandes arquivos e os originais podem permanecer intactos. Essa arquitetura é uma proposta a provar no piloto, especialmente nos eventos de término de fala.
+Expandir a POC STF911 para personagens, cenários, HUD e menus. Medir UV, alpha, upload GPU maior e carregador externo; gerar candidatos HD/4K e assets nativos de interface recriados, sem presumir que o slot BIG 256 aceite 4K. Gate: cena em runtime mostra assets novos sem textura ausente, brilho incorreto ou z-fighting; pacote e restauração conferem hashes.
 
-A camada deve respeitar volume, pausa, retomada, interrupção, pulo de cena, carregamento e liberação de recursos. O canal original da fala substituída deve ser silenciado sem remover música ou efeitos. Se faltar uma entrada, reproduzir o original e registrar a falta; o fallback protege a sessão, mas conta como falha de cobertura na validação do lançamento.
+### P4 — Vídeo HD e trilha PT-BR
 
-O marco de viabilidade decide se essa abordagem consegue preservar o contrato de reprodução. Se não conseguir, avaliar reinserção no formato original antes de iniciar a dublagem em lote. Não prometer nem um importador de voices.dat nem hooks prontos antes dessa prova.
+Para um trecho curto (amostra atual: 6 s), usar Lanczos como baseline e comparar Real-ESRGAN em 2560×1440 com conteúdo 4:3 em 1920×1440 e barras; aplicar legendas depois do upscale e preservar áudio. Medir nitidez, halos, cadence e tamanho. Testar cada um dos 11 BIK por quadros/FPS/duração/áudio e runtime. Se Bink HD falhar, testar player alternativo mantendo o requisito HD; não reduzir para 480p. Gate: escolher método com evidência; separar prova offline, reprodução e falha `skip/return`.
 
-### Vozes locais
+### P5 — PT-BR integral antes de lotes
 
-Primeira escolha: Qwen3-TTS VoiceDesign para criar amostras autorais e o modelo Base para reutilizar a referência de cada personagem. O projeto documenta português e esse fluxo de reutilização; sotaque brasileiro, qualidade dramática e consumo de VRAM serão avaliados localmente. Usar ambiente Python 3.12 isolado, conforme a recomendação do projeto, em vez de depender do Python 3.14 global. Carregar modelos sequencialmente para limitar memória. [Qwen3-TTS, consultado em 14/10/2026](https://github.com/QwenLM/Qwen3-TTS).
+Conciliar a matriz de P0, traduzir todos os textos e falas de campanha (sem aceitar grunhido como dedução ASR), revisar pronúncia por personagem, mapear eventos naturais e FMV, preservar vozes aprovadas por hash e criar POC com três personagens. Validar duração/PCM16/22050 mono, volume, silêncio e interrupção. Gate: cobertura de uma fatia vertical (cena natural, repetição, pausa/load/skip, legenda e FMV) aprovada por escuta e runtime; somente então liberar produção em lotes.
 
-Criar primeiro três identidades: Raziel, Kain e o Ancião. Direção proposta: Raziel introspectivo e incisivo; Kain grave e autoritário; Ancião profundo, paciente e ameaçador. São vozes novas, sem pressupor imitação dos atores originais. Depois cadastrar os demais personagens efetivamente encontrados no inventário, inclusive vozes incidentais.
+### P6 — Produção e QA da campanha
 
-Cada identidade terá referência aprovada, transcrição da referência, instruções de interpretação, pronúncias, parâmetros e revisão. Fixar checkpoints e versões, guardar hashes e registrar seeds quando disponíveis; guardar também os WAVs finais, pois seed não garante reprodução idêntica entre ambientes.
+Gerar em lotes retomáveis, com um modelo GPU carregado, metadados e hashes; incluir áudio, texturas HD, HUD/menu e os 11 vídeos HD. Escutar 100% dos áudios finais; testar campanha, opcionais, repetíveis, todos os FMV e saves. Gate: cada evento no escopo tem tradução, personagem, áudio, legenda e evidência de execução; ausências e recursos não verbais ficam classificados.
 
-Caso o piloto com Qwen falhe nos critérios de PT-BR, avaliar Chatterbox com seu recurso específico de português brasileiro, sem produzir todo o corpus em dois sistemas. Isso é uma contingência de benchmark. [Repositório oficial Chatterbox, consultado em 14/10/2026](https://github.com/resemble-ai/chatterbox).
+### P7 — Instalador e homologação local
 
-### Uso do Unsloth já instalado
+Aplicar pacotes a cópia limpa com validação do executável compatível e dos source assets por componente, incluindo migrações V6; o executável original permanece preservado. Usar backup transacional, detecção de DLL conflitante, reparo, atualização, remoção e restauração. Gate: instalação interrompida, espaço insuficiente e arquivo alterado posteriormente falham com segurança; saves e Steam original permanecem intactos. Publicação exige decisão posterior, créditos ModDB e artefatos próprios.
 
-O Unsloth entra como ferramenta opcional para ajuste fino se o piloto apresentar problemas persistentes de identidade, pronúncia ou interpretação. Sua documentação contempla treinamento de TTS compatível com Transformers a partir de pares de áudio e texto. Isso não comprova que a instalação local já execute o checkpoint Qwen3-TTS escolhido. [Guia oficial de treinamento TTS, consultado em 14/10/2026](https://unsloth.ai/docs/basics/text-to-speech-tts-fine-tuning).
+## Estratégia de testes e evidências
 
-Antes de treinar: identificar ambiente e versões existentes sem reinstalar o Studio; testar a compatibilidade do modelo; preparar dados PT-BR revisados por personagem; separar cenas de treino e avaliação; medir VRAM. A adoção depende de ganho audível em falas de avaliação que não participaram do treino, comparado ao piloto sem treinamento. Uma LoRA única com vozes misturadas não será presumida suficiente para manter identidades.
+Cada milestone entrega logs, hashes, capturas e matriz em `validate/`, fora do Git. Testes unitários cobrem parsing, Unicode, manifestos e rollback; integração cobre leitura de slots, fontes, atlas e Bink; runtime cobre jogo em janela visível e eventos naturais. Os comandos existentes (`cargo test -p soul-reaver-mod-core`, `pnpm --dir installer build` e ferramentas em `tools/`) são checks de código, nunca substitutos da prova de runtime. Nenhum resultado será chamado de funcional, homologado ou completo enquanto a evidência correspondente não existir.
 
-O primeiro piloto continua usando referências fixas sem ajuste fino. Caso necessário, o treinamento será um experimento posterior ao M3, sem alterar a integração do jogo nem exigir Unsloth no computador de quem instalar o mod. Seu custo será incluído na reestimativa.
+## Riscos, rollback e decisões abertas
 
-## Catálogo e fluxo de produção
+| Risco | Mitigação | Rollback |
+|---|---|---|
+| 4K interno não chega à tela ou quebra efeitos | POC visível, captura e comparação 4:3/16:9 | Remover perfil dgVoodoo/patch da cópia |
+| Formato de atlas não aceita HD | Preservar slot e testar upload antes do lote | Restaurar atlas original por hash |
+| Unicode corrompe fonte/UI | Corpus automatizado + captura humana | Desativar pacote de UI/legendas |
+| Bink rejeita vídeo HD ou áudio mixado | Prova offline separada e teste skip/return | Manter vídeo original e registrar pendência |
+| Cobertura confundida com contagem de slots | Matriz por evento/cena/FMV | Rejeitar lote incompleto |
+| Alteração posterior na base | Hashes, journal e cópia isolada | Restaurar somente estado esperado |
 
-Organização prevista do repositório separado da pasta Steam. Os diretórios de código e produção serão criados durante a implementação, além dos documentos iniciais:
+Decisões abertas que bloqueiam promoção: contrato de atlas HD, integração Bink HD, tradução dos eventos desconhecidos e eventual fine-tuning Unsloth. Real-ESRGAN foi escolhido para a amostra comparada; os outros vídeos ainda precisam de avaliação própria. Não há prazos inventados; reestimativa só após métricas de P2, P4 e P5.
 
-```text
-soul-reaver-ptbr-mod/
-  installer/            # aplicativo Tauri: React/TypeScript/Tailwind e backend Rust
-  docs/                 # decisões, reprodução de testes e compatibilidade
-  manifests/            # hashes da base e versões de ferramentas
-  catalog/dialogue.jsonl
-  localization/         # tradução, glossário e revisão
-  voices/               # perfis e referências autorais
-  tools/                # extração, síntese, conferência e empacotamento
-  runtime/              # integração x86 e legendas
-  staging/              # candidatos locais, fora do pacote público
-  evidence/             # logs, capturas e matriz de cobertura
-  dist/                 # pacote reproduzível do mod
-```
+## Handoff
 
-Backups e extrações dos originais ficam fora do pacote distribuível e do controle de versão público.
-
-Cada registro do catálogo deve conter: ID estável; origem DAT/vídeo; chave original; personagem; cena; texto inglês conferido; tradução PT-BR; direção emocional; pronúncias; duração/janela disponível; caminho do WAV; versão da voz; estados de revisão; evidência de execução no jogo. Um fragmento extraído pode corresponder a várias falas e uma fala pode ocupar vários fragmentos.
-
-Fluxo: inventário → extração → transcrição assistida local → conferência pelo áudio e cena → identificação de personagem → tradução e adaptação → revisão → síntese → conferência automática e auditiva → integração → teste real → pacote.
-
-Manter glossário para nomes e conceitos da série, tom literário e relações entre personagens. Adaptar o texto à janela da cena antes de acelerar a voz. Não usar troca de pitch como único meio de diferenciar personagens. Gerar candidatos apenas para falas que precisem de correção e reutilizar resultados aprovados por hash de texto, perfil e parâmetros.
-
-## Marcos e critérios de aceite
-
-| Marco | Responsável técnico | Depende de | Entrega e validação |
-|---|---|---|---|
-| M0 — Base preservada | Ferramentas/instalação | Nada | Cópia isolada, hashes completos, saves e configurações protegidos; iniciar o original e registrar áudio, vídeo, entrada e uma sessão de referência |
-| M1 — 4K | Renderização x86 | M0 | Superfície 3D 3840×2160 comprovada, câmera/HUD proporcionais; testar material/espectral, menus, água/transparências e entrada/saída de FMV; registrar limitações da tela usada |
-| M2 — Viabilidade de áudio | Engenharia reversa/runtime | M0 | Mapear e substituir pelo menos 10 eventos reais, incluindo fala longa, curta, repetida e interrompida; manter música/efeitos e eventos de conclusão; testar reinício, load e skip |
-| M3 — Piloto completo | Tradução/voz/runtime | M1 e M2 | Aproximadamente 30 falas entre três personagens, legendas e um trecho de FMV; cena real em 4K com captura, sem áudio inglês duplicado ou travamento |
-| M4 — Corpus completo | Localização/áudio | M3 | Inventário conciliado com todos os eventos identificados; cada fala recebe personagem, tradução revisada e áudio ouvido integralmente; registrar separadamente sons não verbais e recursos sem uso |
-| M5 — Campanha validada | QA/runtime | M4 | Jogar a campanha do início ao fim e rotas opcionais; testar saves em pontos-chave, diálogos repetíveis, FMVs, skip/pausa/load e sequência final; zero pendências de fala ausente no escopo |
-| M6a — Interface do instalador | Frontend/Tauri | Contrato de componentes definido | Interface navegável de detecção, seleção, revisão e progresso; usar diretórios temporários para testes; não simular instalação bem-sucedida quando ainda não houver pacote real |
-| M6b — Mod instalável | Rust/empacotamento/QA | M5 e M6a | Aplicativo Tauri, instalador Windows .exe, pacote versionado, hashes, documentação e teste numa cópia limpa; repetir instalação/atualização/remoção sem perda de saves |
-
-O M1 pode avançar enquanto o M2 é investigado, mas a produção em massa depende dos dois e do piloto M3. Não há necessidade de delegar tarefas para seguir este plano.
-
-### Aceite específico de áudio e legendas
-
-- Todas as falas do catálogo de campanha têm tradução revisada e voz atribuída; não há entradas de personagem desconhecido na versão final.
-- O conjunto de IDs catalogados é reconciliado com tabelas/scripts extraídos e logs da campanha. A simples contagem de WAVs não comprova cobertura total.
-- Fazer escuta humana de 100% dos áudios finais; ASR local pode sinalizar omissões, palavras extras e trocas, mas não substitui revisão.
-- Zero clipping digital nos arquivos finais; volume de fala comparado com cenas de referência, música e efeitos preservados.
-- Na janela disponível, começo e fim da substituição seguem os eventos medidos do original. Usar desvio de até 100 ms como alvo inicial para os limites dos eventos, ajustando por cena com evidência; não prometer sincronização labial de fonemas.
-- Legendas com acentuação correta e legibilidade verificadas em 1080p, 1440p e 4K, sem cortar texto nas áreas seguras.
-- Medir pico de VRAM, tempo por minuto de áudio e taxa de rejeição no piloto. Estimar o lote completo a partir dessas medidas.
-
-## Vídeos e cobertura de todos os diálogos
-
-Inspecionar auditivamente os 11 vídeos, incluindo intro, visões chrono, verse e créditos, para descobrir quais contêm fala. A presença de áudio não implica que todos tenham diálogos. Comparar com voices.dat para evitar dublações duplicadas ou trechos omitidos.
-
-Se a fala estiver misturada com música/efeitos numa única faixa, a substituição exigirá reconstrução da mixagem. Testar separação local de fontes e avaliar resíduos audíveis; isso pode exigir edição manual. Não existe faixa limpa de música/efeitos comprovada nesta inspeção.
-
-Preferir preservar os frames do vídeo e substituir seu áudio por um caminho compatível comprovado. Validar se há ferramenta de autoria Bink apropriada e disponível ou se será necessária interceptação da reprodução com trilha externa sincronizada. Decodificar com FFmpeg não demonstra capacidade de recodificar Bink compatível com este player. Repetir testes de seek, skip, pausa, retorno ao jogo e término natural.
-
-Upscale visual futuro deve manter 4:3, cadência e duração dos frames, sem inventar detalhes obrigatórios para a primeira versão. Se a trilha traduzida de um vídeo não funcionar, a versão ainda não cumpre o objetivo de todos os diálogos.
-
-## Empacotamento e reversão
-
-O produto de instalação será um aplicativo Tauri 2 com interface simples em React, TypeScript, Vite e Tailwind CSS. A documentação do Tauri recomenda Vite para interfaces React e descreve a geração de instaladores Windows; Tailwind oferece integração própria com Vite. Referências consultadas em 14/10/2026: [frontend Tauri](https://v2.tauri.app/start/frontend/), [instaladores Windows](https://v2.tauri.app/distribute/windows-installer/) e [Tailwind com Vite](https://tailwindcss.com/docs/installation/using-vite).
-
-Distribuir o aplicativo inicialmente como instalador Windows .exe via NSIS. Ele instala o gerenciador do mod; o usuário então escolhe a instalação do jogo para aplicar os componentes. Manter os componentes do mod em pacote ZIP versionado: base de integração, perfil gráfico 4K e áudio/legendas PT-BR. Escolher 4K não deve obrigar uma troca de idioma. O aplicativo Windows poderá ser x64, enquanto DLLs carregadas dentro de kain2.exe precisam ser x86.
-
-Fluxo inicial da interface:
-
-1. Localizar o jogo nas bibliotecas Steam, com seleção manual de pasta como alternativa.
-2. Validar edição, hashes conhecidos, conflitos, jogo em execução e espaço disponível.
-3. Selecionar gráficos 4K, dublagem PT-BR e legendas, respeitando dependências entre componentes.
-4. Revisar alterações e tamanho dos downloads; iniciar instalação com progresso real por etapa.
-5. Mostrar resultado e oferecer abrir o jogo, verificar integridade do mod, reparar, atualizar ou remover.
-
-O backend Rust será responsável por leitura e escrita, validação de caminhos, downloads, hashes, backups, registro das alterações e restauração. A interface recebe estado tipado e eventos de progresso; não executa comandos de shell arbitrários nem recebe acesso irrestrito ao disco. Operações devem ficar restritas à pasta validada do jogo e aos diretórios de cache, configuração e backup do aplicativo. Validar caminhos finais e rejeitar travessia de diretórios e redirecionamentos inesperados ao extrair pacotes.
-
-Usar staging e registro transacional para verificar o pacote antes da aplicação e recuperar interrupções. Evitar pedir privilégios administrativos por padrão; se a pasta escolhida não permitir escrita, explicar o bloqueio sem deixar instalação parcial. Distinguir atualizar o aplicativo Tauri de atualizar os componentes do mod; versões, compatibilidade e mecanismos de verificação terão contratos separados. Não incluir geração de voz, Unsloth ou pesos de IA no instalador dos jogadores.
-
-Manter o repositório privado inicialmente. Releases privadas servirão ao desenvolvimento; não embutir tokens pessoais no aplicativo para baixar assets privados. Antes de distribuir a terceiros, definir um canal de artefatos acessível aos destinatários e a autenticidade dos manifestos/pacotes, além de avaliar assinatura do executável. A criação do repositório não equivale à publicação de uma versão jogável.
-
-O instalador deverá detectar a pasta e a base por hashes; exibir incompatibilidades e impedir aplicação cega em versões desconhecidas. Detectar DLLs de outros mods e não sobrescrevê-las silenciosamente. Se alguma alteração de arquivo for indispensável, criar backup verificado e registrar antes/depois no manifesto de instalação.
-
-O desinstalador removerá apenas arquivos rastreados do mod e restaurará backups somente quando o estado for o esperado. Arquivos alterados posteriormente e saves devem ser preservados. Validar também instalação interrompida e espaço insuficiente, com recuperação sem deixar a base parcialmente modificada.
-
-Distribuir apenas código, configurações e assets próprios necessários. Não incluir executável, DATs originais ou cópias integrais dos vídeos do jogo. Quando necessário, aplicar transformações à cópia que o jogador já possui. Antes de publicação, registrar os termos aplicáveis a ferramentas, checkpoints, referências vocais e conteúdo gerado; não presumir que a licença do código cobre todos os assets. A documentação do dgVoodoo permite componentes individuais inalterados em mods, observadas suas condições; preservar os avisos correspondentes. A publicação pública é uma etapa posterior à criação e validação local do pacote.
-
-## Riscos, limites e estimativa
-
-| Risco | Tratamento |
-|---|---|
-| Limites e eventos de voices.dat desconhecidos | Mapear chamadas reais no M2 e provar substituição antes de sintetizar em lote |
-| Widescreen expõe recortes ou efeitos incorretos | Comparar cenas com a referência 4:3 e corrigir projeção/HUD; manter perfil de compatibilidade e registrar se 16:9 continuar pendente |
-| Mudança de FPS altera o jogo | Separar esse experimento da entrega inicial 4K |
-| Voz muda entre falas ou soa em português europeu | Referência fixa por personagem, avaliação PT-BR e regeneração direcionada |
-| Tradução ultrapassa duração da cena | Adaptar redação e interpretação; evitar aceleração excessiva ou esticar cenas sem prova |
-| FMV tem voz misturada e player restrito | Provar mixagem e integração de uma cena no piloto; reservar trabalho específico para essa parte |
-| Biblioteca Python/CUDA incompatível no Windows | Ambiente isolado, dependências fixadas e teste de síntese local; avaliar WSL2 somente se necessário, sem alterar o ambiente global |
-| Alegar cobertura completa cedo demais | Matriz de eventos, recursos e cenas; campanha integral e revisão de falas opcionais |
-
-Estimativa preliminar, sem contagem conhecida de falas: 3–7 dias de trabalho técnico para os pilotos de gráficos e áudio; 1–3 semanas para catálogo, adaptação e primeira produção; 1–3 semanas para revisão, testes de campanha e pacote. Ordem de grandeza: 3–7 semanas de trabalho dedicado, com incerteza alta e possível extensão se áudio ou FMVs exigirem integração própria. Não é prazo garantido. Reestimar após M3 usando duração total inventariada, velocidade real da síntese, taxa de rejeição e esforço de revisão.
-
-Primeira ação de implementação: M0 e, em seguida, uma prova restrita de 4K e substituição de fala. A primeira entrega jogável deve demonstrar Raziel, Kain e o Ancião em cena, com identidades vocais distintas, legendas e sincronização, antes de expandir para toda a campanha.
-
-## O que permanece sem comprovação nesta etapa
-
-O jogo não foi iniciado; a renderização 4K, o extrator nesta instalação, a reinserção ou substituição de áudio, a síntese local, a integração de legendas e a compatibilidade Bink ainda não foram testados. O total de falas, elenco completo, pontos de integração e termos de cada checkpoint serão levantados durante a implementação. Este documento entrega o plano e as evidências de inspeção, sem atribuir ao mod funcionalidades já concluídas.
+Continuar implementações e verificações offline em staging, mantendo `staging/render4k-v1/steam-before.json` como baseline. Preparar a rodada de P1/P2/P4 e aguardar autorização explícita antes de abrir o jogo. Atualizar a matriz com fatos observados; candidatos não são promovidos nem publicados automaticamente.

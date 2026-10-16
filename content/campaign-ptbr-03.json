@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Falas identificadas dos perfis de Melchiah, Zephon e Rahab, aceitos após comparação; três amostras anteriores serão preservadas separadamente.",
+  "voices": [
+    {"id":164,"speaker":"melchiah","text_ptbr":"Bem-vindo, irmão."},
+    {"id":236,"speaker":"melchiah","text_ptbr":"Você é o último a morrer."},
+    {"id":296,"speaker":"melchiah","text_ptbr":"Não me reconhece, irmão? Mudei tanto assim?"},
+    {"id":387,"speaker":"melchiah","text_ptbr":"Sim, irmão. Devia ter ficado onde o mestre o mandou, Raziel. Nosgoth está menos agradável do que você lembra."},
+    {"id":460,"speaker":"melchiah","text_ptbr":"Todos têm medo, irmão. Você desperta num mundo de medo. Estes tempos de mudança são tão perturbadores. Acha que não sinto repulsa por esta forma? Acredita, por um instante, que nosso senhor arriscaria seu império por um herdeiro presunçoso?"},
+    {"id":268,"speaker":"zephon","text_ptbr":"Veio me testar de novo, irmão? Estou cansado de sua intromissão."},
+    {"id":442,"speaker":"zephon","text_ptbr":"Vontade, instinto, reflexo, ação. A mente de um inseto vê pouca diferença. Eu o aviso, irmão: meu tamanho cresceu, e meu apetite também. Aproxime-se, petisco."},
+    {"id":466,"speaker":"zephon","text_ptbr":"E você já não é o belo Raziel dele. Seu precioso primogênito, agora traidor. Perdeu tantas mudanças, pequeno Raziel. Olhe ao redor. Veja como a arma de destruição dos humanos se tornou meu lar. Na verdade, meu corpo. Um casulo de tijolos e granito, de onde observo um mundo em metamorfose."},
+    {"id":133,"speaker":"rahab","text_ptbr":"Kain disse que viria."},
+    {"id":161,"speaker":"rahab","text_ptbr":"De nós mesmos."},
+    {"id":173,"speaker":"rahab","text_ptbr":"De nós mesmos."},
+    {"id":186,"speaker":"rahab","text_ptbr":"Que você me destruiria."},
+    {"id":199,"speaker":"rahab","text_ptbr":"Cuidado com essa língua blasfema."},
+    {"id":244,"speaker":"rahab","text_ptbr":"Que importa? Estávamos perdidos. Ele nos salvou."},
+    {"id":281,"speaker":"rahab","text_ptbr":"Raziel voltou. Ainda acha que pode me vencer?"},
+    {"id":311,"speaker":"rahab","text_ptbr":"Estou perdido!"}
+  ]
+}

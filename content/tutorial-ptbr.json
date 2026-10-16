@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Abertura jogável e instruções do Ancião; campanha em produção",
+  "voices": [
+    {"id":154,"speaker":"elder","text_ptbr":"Você renasceu."},
+    {"id":160,"speaker":"elder","text_ptbr":"Está fraco. Precisa se alimentar."},
+    {"id":172,"speaker":"raziel","text_ptbr":"Que criaturas são essas?"},
+    {"id":192,"speaker":"elder","text_ptbr":"Você renasceu."},
+    {"id":230,"speaker":"elder","text_ptbr":"Conheço você, Raziel. É digno."},
+    {"id":246,"speaker":"raziel","text_ptbr":"A velha fome me abandonou. Não desejo mais sangue."},
+    {"id":250,"speaker":"raziel","text_ptbr":"A velha fome me abandonou. Não desejo mais sangue."},
+    {"id":255,"speaker":"elder","text_ptbr":"Esses objetos são sombras no reino espectral, imóveis e intocáveis."},
+    {"id":305,"speaker":"elder","text_ptbr":"Esses portais distorcem o espaço e abrem caminhos através de grandes distâncias."},
+    {"id":306,"speaker":"elder","text_ptbr":"Tem muito a aprender, Raziel. Quando estiver pronto, a barreira cairá."},
+    {"id":312,"speaker":"elder","text_ptbr":"Cuidado, Raziel. Ao cruzar este limiar, estará além da minha influência."},
+    {"id":316,"speaker":"elder","text_ptbr":"Você não sobreviveu ao Abismo, Raziel. Eu o poupei da dissolução."},
+    {"id":326,"speaker":"elder","text_ptbr":"Sua força supera a que tinha em vida. Mesmo obstáculos enormes podem ser movidos sem esforço."},
+    {"id":332,"speaker":"elder","text_ptbr":"No reino espectral, a água não tem peso nem substância. É tão tênue quanto o ar."},
+    {"id":336,"speaker":"elder","text_ptbr":"Suas asas ainda têm serventia. Abra-as ao saltar para cruzar o abismo."},
+    {"id":372,"speaker":"elder","text_ptbr":"Livre da carne, a alma logo se esvai para o reino espectral. Absorva-a depressa, Raziel, ou terá de segui-la."},
+    {"id":374,"speaker":"raziel","text_ptbr":"Que loucura é esta? Que forma miserável passei a habitar? A morte seria um alívio diante desta aberração."},
+    {"id":379,"speaker":"elder","text_ptbr":"Sluagh, os necrófagos do submundo. Sua fome selvagem devorou inúmeras almas: espíritos que jamais encontrarão descanso."},
+    {"id":388,"speaker":"elder","text_ptbr":"Como meu agente, está além da morte, Raziel. Seus inimigos não o destruirão. Se enfraquecer, voltará para se recuperar."},
+    {"id":390,"speaker":"elder","text_ptbr":"Mantenha sua força para permanecer no mundo físico. Sem se alimentar, ou se sofrer muitos ferimentos, essa matéria frágil se dissolverá."},
+    {"id":413,"speaker":"elder","text_ptbr":"Você ainda é jovem, Raziel, e mantém fraquezas vampíricas. Na forma carnal, a água dissolve seu corpo e o obriga a voltar ao mundo espiritual."},
+    {"id":445,"speaker":"elder","text_ptbr":"Você mudou. Sua sede de sangue deu lugar a uma necessidade mais profunda. Tornou-se um devorador de almas. Para sustentar sua força, cace os espíritos perdidos do submundo e consuma as almas de seus inimigos."},
+    {"id":462,"speaker":"elder","text_ptbr":"Estes portais ligam os reinos espectral e material. Com eles, poderá reunir matéria e se manifestar no mundo físico. Mas o esforço é grande: primeiro, sua força deve estar totalmente restaurada. Você não precisa de um portal para voltar a este plano. Pode abandonar seu corpo físico a qualquer momento."},
+    {"id":476,"speaker":"elder","text_ptbr":"O nascimento de uma das abominações de Kain aprisiona a essência da vida. É essa alma que anima o cadáver que você habitava. E essa, Raziel, é a ruína de Nosgoth. Não há equilíbrio. As almas dos mortos continuam presas. Não posso fazê-las girar na Roda do Destino. Não podem cumprir seus destinos. Redima-se. Ou, se preferir, vingue-se. Acerte suas contas com Kain. Destrua-o, assim como a seus irmãos. Liberte suas almas e deixe a Roda do Destino girar novamente. Use seu ódio para ceifar suas almas. Posso tornar isso possível. Torne-se meu ceifador de almas. Meu anjo da morte."}
+  ]
+}

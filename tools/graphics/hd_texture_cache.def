@@ -1,0 +1,6 @@
+LIBRARY hd_texture_cache
+EXPORTS
+  RegisterTexturePage=_RegisterTexturePage@20
+  ResolveTextureReplacement=_ResolveTextureReplacement@12
+  InvalidateTextureResource=_InvalidateTextureResource@4
+  ClearTexturePages=_ClearTexturePages@0

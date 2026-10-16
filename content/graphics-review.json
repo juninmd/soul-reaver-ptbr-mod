@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-10-15",
+  "reviewer": "user",
+  "artifact": "validate\\06-render-4k\\trecho-4k.mp4",
+  "artifact_sha256": "b0c02410ce2a6b7e464e2a917ccc2140ca9cb310d95c2a4cee6df81fc4e078a3",
+  "response": "ficou muito bom o video em 4k da cena 3d, seria bom conseguirmos em 60 fps pelo menos",
+  "visual_sample_approved": true,
+  "scope": "Aprovação visual somente deste trecho 3D em 4K; não homologa campanha, texturas HD, Unicode, áudio nem desempenho.",
+  "new_target": {
+    "gameplay_fps": 60,
+    "minimum": true,
+    "native_frames_required": true,
+    "interpolation_is_not_native_fps": true,
+    "physics_animation_audio_timing_must_be_preserved": true,
+    "verified": false
+  }
+}

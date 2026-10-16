@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "scope": "Uma amostra por perfil ainda sem avaliação do usuário.",
+  "voices": [
+    {"id":328,"speaker":"dumah","text_ptbr":"Os séculos no limbo aperfeiçoaram minha força. Nem Kain é meu igual."},
+    {"id":282,"speaker":"ariel","text_ptbr":"O que é você, pequena alma? Outra criatura de Kain, vindo atormentar este espectro aprisionado?"},
+    {"id":266,"speaker":"tomb_guardian","text_ptbr":"Seus insultos não vão aliviar a agonia de sua morte."}
+  ]
+}

@@ -1,0 +1,1922 @@
+{
+  "schema": 1,
+  "kind": "CANDIDATO",
+  "source": "staging/backups/steam-classic-en/locals.pc.original",
+  "source_sha256": "2244304cbf1d89f7aaee44c534cf185c0ffd037272deee909247727be1d54d84",
+  "encoding": "UTF-8",
+  "normalization": "NFC",
+  "human_review": false,
+  "integration": false,
+  "entries": [
+    {
+      "id": 0,
+      "sourcehex": "",
+      "source_display": "",
+      "text_ptbr": "",
+      "status": "empty",
+      "preserveicons": []
+    },
+    {
+      "id": 1,
+      "sourcehex": "666f726d6174206d656d6f72792063617264",
+      "source_display": "format memory card",
+      "text_ptbr": "formatar cartão de memória",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 2,
+      "sourcehex": "72656164696e67206d656d6f7279206361726420696e206d656d6f7279206361726420736c6f742031",
+      "source_display": "reading memory card in memory card slot 1",
+      "text_ptbr": "lendo cartão no compartimento 1",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 3,
+      "sourcehex": "6261636b",
+      "source_display": "back",
+      "text_ptbr": "voltar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 4,
+      "sourcehex": "63616e63656c",
+      "source_display": "cancel",
+      "text_ptbr": "cancelar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 5,
+      "sourcehex": "63686f6f73652061206c6567616379206f66206b61696e3a20736f756c207265617665722066696c6520746f206c6f6164",
+      "source_display": "choose a legacy of kain: soul reaver file to load",
+      "text_ptbr": "escolha um arquivo de Soul Reaver para carregar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 6,
+      "sourcehex": "63686f6f736520612066696c6520746f207361766520796f75722070726f6772657373",
+      "source_display": "choose a file to save your progress",
+      "text_ptbr": "escolha um arquivo para salvar seu progresso",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 7,
+      "sourcehex": "636f6e6669726d",
+      "source_display": "confirm",
+      "text_ptbr": "confirmar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 8,
+      "sourcehex": "636f6e74696e7565",
+      "source_display": "continue",
+      "text_ptbr": "continuar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 9,
+      "sourcehex": "636f6e74726f6c6c6572",
+      "source_display": "controller",
+      "text_ptbr": "controle",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 10,
+      "sourcehex": "6372656174652061206e65772066696c65",
+      "source_display": "create a new file",
+      "text_ptbr": "criar novo arquivo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 11,
+      "sourcehex": "6372656174696e6720736176652066696c65",
+      "source_display": "creating save file",
+      "text_ptbr": "criando arquivo de salvamento",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 12,
+      "sourcehex": "64656d6f73",
+      "source_display": "demos",
+      "text_ptbr": "demonstrações",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 13,
+      "sourcehex": "646f206e6f742072656d6f7665206d656d6f727920636172642066726f6d206d656d6f7279206361726420736c6f742031",
+      "source_display": "do not remove memory card from memory card slot 1",
+      "text_ptbr": "não remova o cartão do compartimento 1",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 14,
+      "sourcehex": "646f6e65",
+      "source_display": "done",
+      "text_ptbr": "concluído",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 15,
+      "sourcehex": "657869742067616d65",
+      "source_display": "exit game",
+      "text_ptbr": "sair do jogo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 16,
+      "sourcehex": "666f726d617474696e67206d656d6f72792063617264",
+      "source_display": "formatting memory card",
+      "text_ptbr": "formatando cartão de memória",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 17,
+      "sourcehex": "676f206261636b",
+      "source_display": "go back",
+      "text_ptbr": "voltar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 18,
+      "sourcehex": "706c6561736520696e736572742061206d656d6f7279206361726420696e206d656d6f7279206361726420736c6f742031",
+      "source_display": "please insert a memory card in memory card slot 1",
+      "text_ptbr": "insira um cartão no compartimento 1",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 19,
+      "sourcehex": "706c6561736520696e736572742061206d656d6f727920636172642077697468206174206c656173742033206672656520626c6f636b7320696e206d656d6f7279206361726420736c6f742031",
+      "source_display": "please insert a memory card with at least 3 free blocks in memory card slot 1",
+      "text_ptbr": "insira um cartão com pelo menos 3 blocos livres no compartimento 1",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 20,
+      "sourcehex": "696e76616c6964206d656d6f72792063617264",
+      "source_display": "invalid memory card",
+      "text_ptbr": "cartão inválido",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 21,
+      "sourcehex": "6c6f6164206661696c6564",
+      "source_display": "load failed",
+      "text_ptbr": "falha ao carregar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 22,
+      "sourcehex": "6c6f61642067616d65",
+      "source_display": "load game",
+      "text_ptbr": "carregar jogo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 23,
+      "sourcehex": "6c6f6164696e672067616d652064617461",
+      "source_display": "loading game data",
+      "text_ptbr": "carregando dados",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 24,
+      "sourcehex": "6d75736963",
+      "source_display": "music",
+      "text_ptbr": "música",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 25,
+      "sourcehex": "6e65772067616d65",
+      "source_display": "new game",
+      "text_ptbr": "novo jogo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 26,
+      "sourcehex": "6e6f",
+      "source_display": "no",
+      "text_ptbr": "não",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 27,
+      "sourcehex": "6e6f206d656d6f727920636172642070726573656e74",
+      "source_display": "no memory card present",
+      "text_ptbr": "nenhum cartão inserido",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 28,
+      "sourcehex": "6d656d6f727920636172642069732066756c6c",
+      "source_display": "memory card is full",
+      "text_ptbr": "cartão cheio",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 29,
+      "sourcehex": "6e6f7420656e6f756768206672656520626c6f636b73",
+      "source_display": "not enough free blocks",
+      "text_ptbr": "espaço insuficiente no cartão",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 30,
+      "sourcehex": "6f6b",
+      "source_display": "ok",
+      "text_ptbr": "ok",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 31,
+      "sourcehex": "6f7074696f6e73",
+      "source_display": "options",
+      "text_ptbr": "opções",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 32,
+      "sourcehex": "6f7665727772697465",
+      "source_display": "overwrite",
+      "text_ptbr": "sobrescrever",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 33,
+      "sourcehex": "706175736564",
+      "source_display": "paused",
+      "text_ptbr": "pausado",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 34,
+      "sourcehex": "7072657373207374617274",
+      "source_display": "press start",
+      "text_ptbr": "pressione start",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 35,
+      "sourcehex": "646f20796f752077616e7420746f20666f726d61742069743f",
+      "source_display": "do you want to format it?",
+      "text_ptbr": "deseja formatar o cartão?",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 36,
+      "sourcehex": "6f76657277726974652070726576696f75736c792073617665642067616d652064617461206f6e206d656d6f7279206361726420696e206d656d6f7279206361726420736c6f7420313f",
+      "source_display": "overwrite previously saved game data on memory card in memory card slot 1?",
+      "text_ptbr": "substituir os dados salvos no cartão do compartimento 1?",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 37,
+      "sourcehex": "7265616c6c7920717569742067616d653f",
+      "source_display": "really quit game?",
+      "text_ptbr": "deseja mesmo sair do jogo?",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 38,
+      "sourcehex": "717569742067616d65",
+      "source_display": "quit game",
+      "text_ptbr": "sair do jogo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 39,
+      "sourcehex": "726573756d65",
+      "source_display": "resume",
+      "text_ptbr": "retomar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 40,
+      "sourcehex": "73617665206661696c6564",
+      "source_display": "save failed",
+      "text_ptbr": "falha ao salvar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 41,
+      "sourcehex": "736176652067616d65",
+      "source_display": "save game",
+      "text_ptbr": "salvar jogo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 42,
+      "sourcehex": "67616d652064617461207361766564",
+      "source_display": "game data saved",
+      "text_ptbr": "jogo salvo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 43,
+      "sourcehex": "736176696e672067616d652064617461",
+      "source_display": "saving game data",
+      "text_ptbr": "salvando dados",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 44,
+      "sourcehex": "736f756e64",
+      "source_display": "sound",
+      "text_ptbr": "som",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 45,
+      "sourcehex": "73746172742067616d65",
+      "source_display": "start game",
+      "text_ptbr": "iniciar jogo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 46,
+      "sourcehex": "73746172742061206e65772067616d65",
+      "source_display": "start a new game",
+      "text_ptbr": "iniciar novo jogo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 47,
+      "sourcehex": "706c656173652074727920616761696e206f7220696e73657274206e6577206d656d6f72792063617264",
+      "source_display": "please try again or insert new memory card",
+      "text_ptbr": "tente novamente ou insira outro cartão",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 48,
+      "sourcehex": "756e666f726d6174746564206d656d6f72792063617264",
+      "source_display": "unformatted memory card",
+      "text_ptbr": "cartão não formatado",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 49,
+      "sourcehex": "766962726174696f6e206f6666",
+      "source_display": "vibration off",
+      "text_ptbr": "vibração desligada",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 50,
+      "sourcehex": "766962726174696f6e206f6e",
+      "source_display": "vibration on",
+      "text_ptbr": "vibração ligada",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 51,
+      "sourcehex": "737065656368",
+      "source_display": "speech",
+      "text_ptbr": "vozes",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 52,
+      "sourcehex": "61206c6567616379206f66206b61696e3a20736f756c207265617665722067616d65207361766520726571756972657320332066726565206d656d6f7279206361726420626c6f636b73",
+      "source_display": "a legacy of kain: soul reaver game save requires 3 free memory card blocks",
+      "text_ptbr": "o jogo precisa de 3 blocos livres no cartão para salvar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 53,
+      "sourcehex": "6d616b65207375726520796f7520686176652061206d656d6f7279206361726420776974682033206672656520626c6f636b7320696e73657274656420696e206d656d6f7279206361726420736c6f74203120696620796f75207769736820746f207361766520796f75722070726f6772657373",
+      "source_display": "make sure you have a memory card with 3 free blocks inserted in memory card slot 1 if you wish to save your progress",
+      "text_ptbr": "para salvar seu progresso, insira um cartão com 3 blocos livres no compartimento 1",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 54,
+      "sourcehex": "796573",
+      "source_display": "yes",
+      "text_ptbr": "sim",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 55,
+      "sourcehex": "66696c746572207465787475726573",
+      "source_display": "filter textures",
+      "text_ptbr": "filtragem de texturas",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 56,
+      "sourcehex": "67616d6d61",
+      "source_display": "gamma",
+      "text_ptbr": "gama",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 57,
+      "sourcehex": "6669786564",
+      "source_display": "fixed",
+      "text_ptbr": "fixo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 58,
+      "sourcehex": "73656c656374207468697320647269766572",
+      "source_display": "select this driver",
+      "text_ptbr": "usar este driver",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 59,
+      "sourcehex": "6e65787420647269766572",
+      "source_display": "next driver",
+      "text_ptbr": "próximo driver",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 60,
+      "sourcehex": "73656c6563742074686973207265736f6c7574696f6e",
+      "source_display": "select this resolution",
+      "text_ptbr": "usar esta resolução",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 61,
+      "sourcehex": "6e657874207265736f6c7574696f6e",
+      "source_display": "next resolution",
+      "text_ptbr": "próxima resolução",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 62,
+      "sourcehex": "63757272656e7420647269766572",
+      "source_display": "current driver",
+      "text_ptbr": "driver atual",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 63,
+      "sourcehex": "70726f706f73656420647269766572",
+      "source_display": "proposed driver",
+      "text_ptbr": "driver sugerido",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 64,
+      "sourcehex": "63757272656e74207265736f6c7574696f6e",
+      "source_display": "current resolution",
+      "text_ptbr": "resolução atual",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 65,
+      "sourcehex": "70726f706f736564207265736f6c7574696f6e",
+      "source_display": "proposed resolution",
+      "text_ptbr": "nova resolução",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 66,
+      "sourcehex": "7769647468",
+      "source_display": "width",
+      "text_ptbr": "largura",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 67,
+      "sourcehex": "686569676874",
+      "source_display": "height",
+      "text_ptbr": "altura",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 68,
+      "sourcehex": "626974206465707468",
+      "source_display": "bit depth",
+      "text_ptbr": "profundidade de cor",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 69,
+      "sourcehex": "73656c656374207265736f6c7574696f6e",
+      "source_display": "select resolution",
+      "text_ptbr": "escolher resolução",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 70,
+      "sourcehex": "73656c65637420647269766572",
+      "source_display": "select driver",
+      "text_ptbr": "escolher dispositivo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 71,
+      "sourcehex": "766964656f20636f6e66696775726174696f6e",
+      "source_display": "video configuration",
+      "text_ptbr": "configuração de vídeo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 72,
+      "sourcehex": "656d707479",
+      "source_display": "empty",
+      "text_ptbr": "vazio",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 73,
+      "sourcehex": "7265736574",
+      "source_display": "reset",
+      "text_ptbr": "redefinir",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 74,
+      "sourcehex": "67616d65706164",
+      "source_display": "gamepad",
+      "text_ptbr": "controle",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 75,
+      "sourcehex": "6b6579626f617264",
+      "source_display": "keyboard",
+      "text_ptbr": "teclado",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 76,
+      "sourcehex": "636f6e74726f6c",
+      "source_display": "control",
+      "text_ptbr": "comandos",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 77,
+      "sourcehex": "67616d6570616420636f6e66696775726174696f6e",
+      "source_display": "gamepad configuration",
+      "text_ptbr": "configuração do controle",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 78,
+      "sourcehex": "6b6579626f61726420636f6e66696775726174696f6e",
+      "source_display": "keyboard configuration",
+      "text_ptbr": "configuração do teclado",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 79,
+      "sourcehex": "7570",
+      "source_display": "up",
+      "text_ptbr": "cima",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 80,
+      "sourcehex": "646f776e",
+      "source_display": "down",
+      "text_ptbr": "baixo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 81,
+      "sourcehex": "6c656674",
+      "source_display": "left",
+      "text_ptbr": "esquerda",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 82,
+      "sourcehex": "7269676874",
+      "source_display": "right",
+      "text_ptbr": "direita",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 83,
+      "sourcehex": "747269616e676c65",
+      "source_display": "triangle",
+      "text_ptbr": "triângulo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 84,
+      "sourcehex": "78",
+      "source_display": "x",
+      "text_ptbr": "x",
+      "status": "symbol",
+      "preserveicons": []
+    },
+    {
+      "id": 85,
+      "sourcehex": "737175617265",
+      "source_display": "square",
+      "text_ptbr": "quadrado",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 86,
+      "sourcehex": "636972636c65",
+      "source_display": "circle",
+      "text_ptbr": "círculo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 87,
+      "sourcehex": "66726f6e74206c65667420746f70",
+      "source_display": "front left top",
+      "text_ptbr": "superior frontal esquerdo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 88,
+      "sourcehex": "66726f6e74206c65667420626f74746f6d",
+      "source_display": "front left bottom",
+      "text_ptbr": "inferior frontal esquerdo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 89,
+      "sourcehex": "66726f6e7420726967687420746f70",
+      "source_display": "front right top",
+      "text_ptbr": "superior frontal direito",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 90,
+      "sourcehex": "66726f6e7420726967687420626f74746f6d",
+      "source_display": "front right bottom",
+      "text_ptbr": "inferior frontal direito",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 91,
+      "sourcehex": "69",
+      "source_display": "i",
+      "text_ptbr": "i",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 92,
+      "sourcehex": "6a",
+      "source_display": "j",
+      "text_ptbr": "j",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 93,
+      "sourcehex": "7374617274",
+      "source_display": "start",
+      "text_ptbr": "start",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 94,
+      "sourcehex": "73656c656374",
+      "source_display": "select",
+      "text_ptbr": "select",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 95,
+      "sourcehex": "666f7277617264",
+      "source_display": "forward",
+      "text_ptbr": "avançar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 96,
+      "sourcehex": "6261636b",
+      "source_display": "back",
+      "text_ptbr": "recuar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 97,
+      "sourcehex": "6c656674",
+      "source_display": "left",
+      "text_ptbr": "esquerda",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 98,
+      "sourcehex": "7269676874",
+      "source_display": "right",
+      "text_ptbr": "direita",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 99,
+      "sourcehex": "6a756d702f7377696d",
+      "source_display": "jump/swim",
+      "text_ptbr": "pular/nadar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 100,
+      "sourcehex": "6465766f757220736f756c",
+      "source_display": "devour soul",
+      "text_ptbr": "devorar uma alma",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 101,
+      "sourcehex": "61696d2f67726170706c65",
+      "source_display": "aim/grapple",
+      "text_ptbr": "mirar/agarrar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 102,
+      "sourcehex": "616374696f6e",
+      "source_display": "action",
+      "text_ptbr": "ação",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 103,
+      "sourcehex": "63726f756368",
+      "source_display": "crouch",
+      "text_ptbr": "agachar",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 104,
+      "sourcehex": "736e65616b2f6661636520656e656d79",
+      "source_display": "sneak/face enemy",
+      "text_ptbr": "andar furtivamente/encarar inimigo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 105,
+      "sourcehex": "70616e206c656674",
+      "source_display": "pan left",
+      "text_ptbr": "mover a câmera para a esquerda",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 106,
+      "sourcehex": "70616e207269676874",
+      "source_display": "pan right",
+      "text_ptbr": "mover a câmera para a direita",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 107,
+      "sourcehex": "7374617274",
+      "source_display": "start",
+      "text_ptbr": "start",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 108,
+      "sourcehex": "676c797068206d656e75",
+      "source_display": "glyph menu",
+      "text_ptbr": "menu de glifos",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 109,
+      "sourcehex": "7a6f6f6d",
+      "source_display": "zoom",
+      "text_ptbr": "zoom",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 110,
+      "sourcehex": "657363617065",
+      "source_display": "escape",
+      "text_ptbr": "escape",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 111,
+      "sourcehex": "6261636b7370616365",
+      "source_display": "backspace",
+      "text_ptbr": "backspace",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 112,
+      "sourcehex": "746162",
+      "source_display": "tab",
+      "text_ptbr": "tab",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 113,
+      "sourcehex": "656e746572",
+      "source_display": "enter",
+      "text_ptbr": "enter",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 114,
+      "sourcehex": "6c206374726c",
+      "source_display": "l ctrl",
+      "text_ptbr": "l ctrl",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 115,
+      "sourcehex": "6c207368696674",
+      "source_display": "l shift",
+      "text_ptbr": "l shift",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 116,
+      "sourcehex": "72207368696674",
+      "source_display": "r shift",
+      "text_ptbr": "r shift",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 117,
+      "sourcehex": "6e756d706164202a",
+      "source_display": "numpad *",
+      "text_ptbr": "numpad *",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 118,
+      "sourcehex": "6c20616c74",
+      "source_display": "l alt",
+      "text_ptbr": "l alt",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 119,
+      "sourcehex": "737061636520626172",
+      "source_display": "space bar",
+      "text_ptbr": "space bar",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 120,
+      "sourcehex": "63617073206c6f636b",
+      "source_display": "caps lock",
+      "text_ptbr": "caps lock",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 121,
+      "sourcehex": "6631",
+      "source_display": "f1",
+      "text_ptbr": "f1",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 122,
+      "sourcehex": "6632",
+      "source_display": "f2",
+      "text_ptbr": "f2",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 123,
+      "sourcehex": "6633",
+      "source_display": "f3",
+      "text_ptbr": "f3",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 124,
+      "sourcehex": "6634",
+      "source_display": "f4",
+      "text_ptbr": "f4",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 125,
+      "sourcehex": "6635",
+      "source_display": "f5",
+      "text_ptbr": "f5",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 126,
+      "sourcehex": "6636",
+      "source_display": "f6",
+      "text_ptbr": "f6",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 127,
+      "sourcehex": "6637",
+      "source_display": "f7",
+      "text_ptbr": "f7",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 128,
+      "sourcehex": "6638",
+      "source_display": "f8",
+      "text_ptbr": "f8",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 129,
+      "sourcehex": "6639",
+      "source_display": "f9",
+      "text_ptbr": "f9",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 130,
+      "sourcehex": "663130",
+      "source_display": "f10",
+      "text_ptbr": "f10",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 131,
+      "sourcehex": "6e756d206c6f636b",
+      "source_display": "num lock",
+      "text_ptbr": "num lock",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 132,
+      "sourcehex": "7363726f6c6c206c6f636b",
+      "source_display": "scroll lock",
+      "text_ptbr": "scroll lock",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 133,
+      "sourcehex": "6e756d7061642037",
+      "source_display": "numpad 7",
+      "text_ptbr": "numpad 7",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 134,
+      "sourcehex": "6e756d7061642038",
+      "source_display": "numpad 8",
+      "text_ptbr": "numpad 8",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 135,
+      "sourcehex": "6e756d7061642039",
+      "source_display": "numpad 9",
+      "text_ptbr": "numpad 9",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 136,
+      "sourcehex": "6e756d706164202d",
+      "source_display": "numpad -",
+      "text_ptbr": "numpad -",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 137,
+      "sourcehex": "6e756d7061642034",
+      "source_display": "numpad 4",
+      "text_ptbr": "numpad 4",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 138,
+      "sourcehex": "6e756d7061642035",
+      "source_display": "numpad 5",
+      "text_ptbr": "numpad 5",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 139,
+      "sourcehex": "6e756d7061642036",
+      "source_display": "numpad 6",
+      "text_ptbr": "numpad 6",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 140,
+      "sourcehex": "6e756d706164202b",
+      "source_display": "numpad +",
+      "text_ptbr": "numpad +",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 141,
+      "sourcehex": "6e756d7061642031",
+      "source_display": "numpad 1",
+      "text_ptbr": "numpad 1",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 142,
+      "sourcehex": "6e756d7061642032",
+      "source_display": "numpad 2",
+      "text_ptbr": "numpad 2",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 143,
+      "sourcehex": "6e756d7061642033",
+      "source_display": "numpad 3",
+      "text_ptbr": "numpad 3",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 144,
+      "sourcehex": "6e756d7061642030",
+      "source_display": "numpad 0",
+      "text_ptbr": "numpad 0",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 145,
+      "sourcehex": "6e756d706164202e",
+      "source_display": "numpad .",
+      "text_ptbr": "numpad .",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 146,
+      "sourcehex": "663131",
+      "source_display": "f11",
+      "text_ptbr": "f11",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 147,
+      "sourcehex": "663132",
+      "source_display": "f12",
+      "text_ptbr": "f12",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 148,
+      "sourcehex": "663133",
+      "source_display": "f13",
+      "text_ptbr": "f13",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 149,
+      "sourcehex": "663134",
+      "source_display": "f14",
+      "text_ptbr": "f14",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 150,
+      "sourcehex": "663135",
+      "source_display": "f15",
+      "text_ptbr": "f15",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 151,
+      "sourcehex": "6e756d706164203d",
+      "source_display": "numpad =",
+      "text_ptbr": "numpad =",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 152,
+      "sourcehex": "6e756d70616420656e746572",
+      "source_display": "numpad enter",
+      "text_ptbr": "numpad enter",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 153,
+      "sourcehex": "72206374726c",
+      "source_display": "r ctrl",
+      "text_ptbr": "r ctrl",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 154,
+      "sourcehex": "6e756d706164202c",
+      "source_display": "numpad ,",
+      "text_ptbr": "numpad ,",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 155,
+      "sourcehex": "6e756d706164202f",
+      "source_display": "numpad /",
+      "text_ptbr": "numpad /",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 156,
+      "sourcehex": "7379737271",
+      "source_display": "sysrq",
+      "text_ptbr": "sysrq",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 157,
+      "sourcehex": "7220616c74",
+      "source_display": "r alt",
+      "text_ptbr": "r alt",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 158,
+      "sourcehex": "686f6d65",
+      "source_display": "home",
+      "text_ptbr": "home",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 159,
+      "sourcehex": "7570",
+      "source_display": "up",
+      "text_ptbr": "cima",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 160,
+      "sourcehex": "70616765207570",
+      "source_display": "page up",
+      "text_ptbr": "page up",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 161,
+      "sourcehex": "6c656674",
+      "source_display": "left",
+      "text_ptbr": "esquerda",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 162,
+      "sourcehex": "7269676874",
+      "source_display": "right",
+      "text_ptbr": "direita",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 163,
+      "sourcehex": "656e64",
+      "source_display": "end",
+      "text_ptbr": "end",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 164,
+      "sourcehex": "646f776e",
+      "source_display": "down",
+      "text_ptbr": "baixo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 165,
+      "sourcehex": "7061676520646f776e",
+      "source_display": "page down",
+      "text_ptbr": "page down",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 166,
+      "sourcehex": "696e73657274",
+      "source_display": "insert",
+      "text_ptbr": "insert",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 167,
+      "sourcehex": "64656c657465",
+      "source_display": "delete",
+      "text_ptbr": "delete",
+      "status": "key_label",
+      "preserveicons": []
+    },
+    {
+      "id": 168,
+      "sourcehex": "7e",
+      "source_display": "~",
+      "text_ptbr": "~",
+      "status": "symbol",
+      "preserveicons": []
+    },
+    {
+      "id": 169,
+      "sourcehex": "20",
+      "source_display": "",
+      "text_ptbr": "",
+      "status": "empty",
+      "preserveicons": []
+    },
+    {
+      "id": 170,
+      "sourcehex": "c820746f20656e67616765",
+      "source_display": "[icon:0xC8] to engage",
+      "text_ptbr": "[icon:0xC8] para interagir",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 171,
+      "sourcehex": "d3202b20d220746f2076696577",
+      "source_display": "[icon:0xD3] + [icon:0xD2] to view",
+      "text_ptbr": "[icon:0xD3] + [icon:0xD2] para olhar",
+      "status": "translated",
+      "preserveicons": [
+        "0xD3",
+        "0xD2"
+      ]
+    },
+    {
+      "id": 172,
+      "sourcehex": "c820746f2065786974",
+      "source_display": "[icon:0xC8] to exit",
+      "text_ptbr": "[icon:0xC8] para sair",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 173,
+      "sourcehex": "686f6c6420ca20746f2066656564",
+      "source_display": "hold [icon:0xCA] to feed",
+      "text_ptbr": "segure [icon:0xCA] para devorar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCA"
+      ]
+    },
+    {
+      "id": 174,
+      "sourcehex": "cb20746f206a756d70",
+      "source_display": "[icon:0xCB] to jump",
+      "text_ptbr": "[icon:0xCB] para pular",
+      "status": "translated",
+      "preserveicons": [
+        "0xCB"
+      ]
+    },
+    {
+      "id": 175,
+      "sourcehex": "686f6c6420cc202b20cb20746f20686967682d6a756d70",
+      "source_display": "hold [icon:0xCC] + [icon:0xCB] to high-jump",
+      "text_ptbr": "segure [icon:0xCC] + [icon:0xCB] para dar um salto alto",
+      "status": "translated",
+      "preserveicons": [
+        "0xCC",
+        "0xCB"
+      ]
+    },
+    {
+      "id": 176,
+      "sourcehex": "6a756d70207468656e20686f6c6420cb20746f20676c696465",
+      "source_display": "jump then hold [icon:0xCB] to glide",
+      "text_ptbr": "pule e segure [icon:0xCB] para planar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCB"
+      ]
+    },
+    {
+      "id": 177,
+      "sourcehex": "686f6c6420ce20746f206175746f66616365",
+      "source_display": "hold [icon:0xCE] to autoface",
+      "text_ptbr": "segure [icon:0xCE] para encarar o inimigo",
+      "status": "translated",
+      "preserveicons": [
+        "0xCE"
+      ]
+    },
+    {
+      "id": 178,
+      "sourcehex": "c820746f2061747461636b",
+      "source_display": "[icon:0xC8] to attack",
+      "text_ptbr": "[icon:0xC8] para atacar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 179,
+      "sourcehex": "6175746f66616365202b20d020d120d320d2207468656e20cb20746f20646f646765",
+      "source_display": "autoface + [icon:0xD0] [icon:0xD1] [icon:0xD3] [icon:0xD2] then [icon:0xCB] to dodge",
+      "text_ptbr": "encare o inimigo + [icon:0xD0] [icon:0xD1] [icon:0xD3] [icon:0xD2] e [icon:0xCB] para desviar",
+      "status": "translated",
+      "preserveicons": [
+        "0xD0",
+        "0xD1",
+        "0xD3",
+        "0xD2",
+        "0xCB"
+      ]
+    },
+    {
+      "id": 180,
+      "sourcehex": "6865616c7468206d7573742062652066756c6c",
+      "source_display": "health must be full",
+      "text_ptbr": "a vida precisa estar cheia",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 181,
+      "sourcehex": "707265737320d420627574746f6e",
+      "source_display": "press [icon:0xD4] button",
+      "text_ptbr": "pressione o botão [icon:0xD4]",
+      "status": "translated",
+      "preserveicons": [
+        "0xD4"
+      ]
+    },
+    {
+      "id": 182,
+      "sourcehex": "c820746f207368696674",
+      "source_display": "[icon:0xC8] to shift",
+      "text_ptbr": "[icon:0xC8] para mudar de plano",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 183,
+      "sourcehex": "c820746f206f70656e",
+      "source_display": "[icon:0xC8] to open",
+      "text_ptbr": "[icon:0xC8] para abrir",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 184,
+      "sourcehex": "686f6c6420c920746f2067726170706c65",
+      "source_display": "hold [icon:0xC9] to grapple",
+      "text_ptbr": "segure [icon:0xC9] para agarrar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC9"
+      ]
+    },
+    {
+      "id": 185,
+      "sourcehex": "72656c6561736520c920746f207468726f77",
+      "source_display": "release [icon:0xC9] to throw",
+      "text_ptbr": "solte [icon:0xC9] para arremessar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC9"
+      ]
+    },
+    {
+      "id": 186,
+      "sourcehex": "c820746f2073686f7665",
+      "source_display": "[icon:0xC8] to shove",
+      "text_ptbr": "[icon:0xC8] para empurrar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 187,
+      "sourcehex": "686f6c6420c820746f2067726162",
+      "source_display": "hold [icon:0xC8] to grab",
+      "text_ptbr": "segure [icon:0xC8] para agarrar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 188,
+      "sourcehex": "d020d120d320d220746f2064726167",
+      "source_display": "[icon:0xD0] [icon:0xD1] [icon:0xD3] [icon:0xD2] to drag",
+      "text_ptbr": "[icon:0xD0] [icon:0xD1] [icon:0xD3] [icon:0xD2] para arrastar",
+      "status": "translated",
+      "preserveicons": [
+        "0xD0",
+        "0xD1",
+        "0xD3",
+        "0xD2"
+      ]
+    },
+    {
+      "id": 189,
+      "sourcehex": "c820746f207069636b207570",
+      "source_display": "[icon:0xC8] to pick up",
+      "text_ptbr": "[icon:0xC8] para pegar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 190,
+      "sourcehex": "cc202b20c820746f2070757420646f776e",
+      "source_display": "[icon:0xCC] + [icon:0xC8] to put down",
+      "text_ptbr": "[icon:0xCC] + [icon:0xC8] para soltar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCC",
+        "0xC8"
+      ]
+    },
+    {
+      "id": 191,
+      "sourcehex": "686f6c6420c920746f206175746f2d61696d",
+      "source_display": "hold [icon:0xC9] to auto-aim",
+      "text_ptbr": "segure [icon:0xC9] para mirar no automático",
+      "status": "translated",
+      "preserveicons": [
+        "0xC9"
+      ]
+    },
+    {
+      "id": 192,
+      "sourcehex": "cc20746f2063616e63656c",
+      "source_display": "[icon:0xCC] to cancel",
+      "text_ptbr": "[icon:0xCC] para cancelar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCC"
+      ]
+    },
+    {
+      "id": 193,
+      "sourcehex": "686f6c6420c920746f20696d70616c65",
+      "source_display": "hold [icon:0xC9] to impale",
+      "text_ptbr": "segure [icon:0xC9] para empalar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC9"
+      ]
+    },
+    {
+      "id": 194,
+      "sourcehex": "686f6c6420ce20746f20736e65616b",
+      "source_display": "hold [icon:0xCE] to sneak",
+      "text_ptbr": "segure [icon:0xCE] para andar furtivamente",
+      "status": "translated",
+      "preserveicons": [
+        "0xCE"
+      ]
+    },
+    {
+      "id": 195,
+      "sourcehex": "686f6c6420c920746f2069676e697465",
+      "source_display": "hold [icon:0xC9] to ignite",
+      "text_ptbr": "segure [icon:0xC9] para incendiar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC9"
+      ]
+    },
+    {
+      "id": 196,
+      "sourcehex": "cc202b20c820746f20666c6970",
+      "source_display": "[icon:0xCC] + [icon:0xC8] to flip",
+      "text_ptbr": "[icon:0xCC] + [icon:0xC8] para dar uma cambalhota",
+      "status": "translated",
+      "preserveicons": [
+        "0xCC",
+        "0xC8"
+      ]
+    },
+    {
+      "id": 197,
+      "sourcehex": "c820746f206f706572617465",
+      "source_display": "[icon:0xC8] to operate",
+      "text_ptbr": "[icon:0xC8] para acionar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 198,
+      "sourcehex": "686f6c6420c820746f206f706572617465",
+      "source_display": "hold [icon:0xC8] to operate",
+      "text_ptbr": "segure [icon:0xC8] para acionar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 199,
+      "sourcehex": "cc202b20d020d120d320d220746f20637261776c",
+      "source_display": "[icon:0xCC] + [icon:0xD0] [icon:0xD1] [icon:0xD3] [icon:0xD2] to crawl",
+      "text_ptbr": "[icon:0xCC] + [icon:0xD0] [icon:0xD1] [icon:0xD3] [icon:0xD2] para rastejar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCC",
+        "0xD0",
+        "0xD1",
+        "0xD3",
+        "0xD2"
+      ]
+    },
+    {
+      "id": 200,
+      "sourcehex": "cd2bcf202b20c920746f206d616e75616c6c792061696d",
+      "source_display": "[icon:0xCD]+[icon:0xCF] + [icon:0xC9] to manually aim",
+      "text_ptbr": "[icon:0xCD]+[icon:0xCF] + [icon:0xC9] para mirar manualmente",
+      "status": "translated",
+      "preserveicons": [
+        "0xCD",
+        "0xCF",
+        "0xC9"
+      ]
+    },
+    {
+      "id": 201,
+      "sourcehex": "d020746f207068617365207468726f756768",
+      "source_display": "[icon:0xD0] to phase through",
+      "text_ptbr": "[icon:0xD0] para atravessar para o outro plano",
+      "status": "translated",
+      "preserveicons": [
+        "0xD0"
+      ]
+    },
+    {
+      "id": 202,
+      "sourcehex": "cb20746f20636c696d62",
+      "source_display": "[icon:0xCB] to climb",
+      "text_ptbr": "[icon:0xCB] para escalar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCB"
+      ]
+    },
+    {
+      "id": 203,
+      "sourcehex": "cb20746f2064726f70",
+      "source_display": "[icon:0xCB] to drop",
+      "text_ptbr": "[icon:0xCB] para soltar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCB"
+      ]
+    },
+    {
+      "id": 204,
+      "sourcehex": "707265737320c920746f2073686f6f74",
+      "source_display": "press [icon:0xC9] to shoot",
+      "text_ptbr": "[icon:0xC9] para disparar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC9"
+      ]
+    },
+    {
+      "id": 205,
+      "sourcehex": "cb20746f207377696d",
+      "source_display": "[icon:0xCB] to swim",
+      "text_ptbr": "[icon:0xCB] para nadar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCB"
+      ]
+    },
+    {
+      "id": 206,
+      "sourcehex": "686f6c6420cc202b20cb20666f72207370656564206275727374",
+      "source_display": "hold [icon:0xCC] + [icon:0xCB] for speed burst",
+      "text_ptbr": "segure [icon:0xCC] + [icon:0xCB] para dar um impulso de velocidade",
+      "status": "translated",
+      "preserveicons": [
+        "0xCC",
+        "0xCB"
+      ]
+    },
+    {
+      "id": 207,
+      "sourcehex": "636972636c65206f626a65637420746f20636f6e737472696374",
+      "source_display": "circle object to constrict",
+      "text_ptbr": "dê a volta no objeto para apertá-lo",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 208,
+      "sourcehex": "d32c20d220746f2073656c656374",
+      "source_display": "[icon:0xD3], [icon:0xD2] to select",
+      "text_ptbr": "[icon:0xD3], [icon:0xD2] para escolher",
+      "status": "translated",
+      "preserveicons": [
+        "0xD3",
+        "0xD2"
+      ]
+    },
+    {
+      "id": 209,
+      "sourcehex": "c820746f2063617374",
+      "source_display": "[icon:0xC8] to cast",
+      "text_ptbr": "[icon:0xC8] para conjurar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 210,
+      "sourcehex": "686f6c6420ce20746f20736c6f772064657363656e74",
+      "source_display": "hold [icon:0xCE] to slow descent",
+      "text_ptbr": "segure [icon:0xCE] para descer devagar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCE"
+      ]
+    },
+    {
+      "id": 211,
+      "sourcehex": "cc20746f2063726f756368",
+      "source_display": "[icon:0xCC] to crouch",
+      "text_ptbr": "[icon:0xCC] para agachar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCC"
+      ]
+    },
+    {
+      "id": 212,
+      "sourcehex": "cd206f7220cf20746f20726f746174652063616d657261",
+      "source_display": "[icon:0xCD] or [icon:0xCF] to rotate camera",
+      "text_ptbr": "[icon:0xCD] ou [icon:0xCF] para girar a câmera",
+      "status": "translated",
+      "preserveicons": [
+        "0xCD",
+        "0xCF"
+      ]
+    },
+    {
+      "id": 213,
+      "sourcehex": "686f6c6420cd2bcf20746f206c6f6f6b2061726f756e64",
+      "source_display": "hold [icon:0xCD]+[icon:0xCF] to look around",
+      "text_ptbr": "segure [icon:0xCD]+[icon:0xCF] para olhar ao redor",
+      "status": "translated",
+      "preserveicons": [
+        "0xCD",
+        "0xCF"
+      ]
+    },
+    {
+      "id": 214,
+      "sourcehex": "6d75737420626520696e206d6174657269616c",
+      "source_display": "must be in material",
+      "text_ptbr": "é preciso estar no plano material",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 215,
+      "sourcehex": "6d75737420626520696e20737065637472616c",
+      "source_display": "must be in spectral",
+      "text_ptbr": "é preciso estar no plano espectral",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 216,
+      "sourcehex": "cb202b20cb20746f20676c696465",
+      "source_display": "[icon:0xCB] + [icon:0xCB] to glide",
+      "text_ptbr": "[icon:0xCB] + [icon:0xCB] para planar",
+      "status": "translated",
+      "preserveicons": [
+        "0xCB",
+        "0xCB"
+      ]
+    },
+    {
+      "id": 217,
+      "sourcehex": "c820746f2072657475726e",
+      "source_display": "[icon:0xC8] to return",
+      "text_ptbr": "[icon:0xC8] para voltar",
+      "status": "translated",
+      "preserveicons": [
+        "0xC8"
+      ]
+    },
+    {
+      "id": 218,
+      "sourcehex": "cc202b20cb20746f20686967682d6a756d70",
+      "source_display": "[icon:0xCC] + [icon:0xCB] to high-jump",
+      "text_ptbr": "[icon:0xCC] + [icon:0xCB] para dar um salto alto",
+      "status": "translated",
+      "preserveicons": [
+        "0xCC",
+        "0xCB"
+      ]
+    },
+    {
+      "id": 219,
+      "sourcehex": "707265737320d020746f207068617365207468726f756768",
+      "source_display": "press [icon:0xD0] to phase through",
+      "text_ptbr": "pressione [icon:0xD0] para atravessar para o outro plano",
+      "status": "translated",
+      "preserveicons": [
+        "0xD0"
+      ]
+    },
+    {
+      "id": 220,
+      "sourcehex": "cd2bcf20746f206c6f6f6b2061726f756e64",
+      "source_display": "[icon:0xCD]+[icon:0xCF] to look around",
+      "text_ptbr": "[icon:0xCD]+[icon:0xCF] para olhar ao redor",
+      "status": "translated",
+      "preserveicons": [
+        "0xCD",
+        "0xCF"
+      ]
+    },
+    {
+      "id": 221,
+      "sourcehex": "73747265616d696e67",
+      "source_display": "streaming",
+      "text_ptbr": "carregando",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 222,
+      "sourcehex": "7468697320697320616e20696c6c6567616c2068696e74206e756d626572",
+      "source_display": "this is an illegal hint number",
+      "text_ptbr": "número de dica inválido",
+      "status": "translated",
+      "preserveicons": []
+    },
+    {
+      "id": 223,
+      "sourcehex": "6e6f20636f6e74726f6c6c657220696e20636f6e74726f6c6c657220706f72742031",
+      "source_display": "no controller in controller port 1",
+      "text_ptbr": "nenhum controle conectado à porta 1",
+      "status": "translated",
+      "preserveicons": []
+    }
+  ]
+}

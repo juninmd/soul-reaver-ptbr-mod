@@ -1,0 +1,94 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-10-16",
+  "reviewer": "user",
+  "response": "As três estão adequadas; aprovo todas as vozes também, se atente aos seed das vozes para não mudar as vozes dos personagens. Clarificação: Identidades e perfis dos personagens.",
+  "scope": "Aprovação das identidades/perfis dos 10 personagens configurados em staging/campaign-dub-v10/plan.json, vinculados às referências por SHA-256. Não aprova automaticamente cada take de fala, tradução, mixagem, sincronismo ou acionamento de cena.",
+  "profiles": [
+    {
+      "speaker": "raziel",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/voice-test-raziel/raziel-original-en.wav",
+      "reference_sha256": "8fa47e41d8e1f068f6db1606ac478c1c6c2d70be2cdef452b8b294b8debaa868",
+      "approved_identity": true
+    },
+    {
+      "speaker": "kain",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0298.wav",
+      "reference_sha256": "92a166fd7a81d50b1694af700686afd797c8bc808a6b03640d9668c367378a60",
+      "approved_identity": true,
+      "comparison": "staging/localization-v2/comparisons/kain-original-e-ia.mp3"
+    },
+    {
+      "speaker": "elder",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0306.wav",
+      "reference_sha256": "1d170e3581e3bdcdc37e23f4ec82b97e2a26f3feae1cdcf80b8219a99703f7d1",
+      "approved_identity": true,
+      "comparison": "staging/localization-v2/comparisons/elder-original-e-ia.mp3"
+    },
+    {
+      "speaker": "moebius",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0436.wav",
+      "reference_sha256": "8ca6066d236d143eb2cd09e9d4b2bd0e2c6a1ffe04f11df66a9b5d33bbcc2cf4",
+      "approved_identity": true,
+      "comparison": "staging/localization-v2/comparisons/moebius-original-e-ia.mp3"
+    },
+    {
+      "speaker": "melchiah",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0378.wav",
+      "reference_sha256": "8ea228d9baeaf2122a4351980c500f3b6cb946d2aa40513d9d847a9ee97df348",
+      "approved_identity": true,
+      "comparison": "staging/cast-preview-v2/comparisons/melchiah-original-e-ia.mp3"
+    },
+    {
+      "speaker": "zephon",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0257.wav",
+      "reference_sha256": "86ce4888ab1d19bad96ad68edc21f19a3b3fce10649aef916c214f77cb338a99",
+      "approved_identity": true,
+      "comparison": "staging/cast-preview-v2/comparisons/zephon-original-e-ia.mp3"
+    },
+    {
+      "speaker": "rahab",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0349.wav",
+      "reference_sha256": "0d8de9c323d168ea409aac930bcf460ab4d9912aac05d10becd85f7897c9eb4a",
+      "approved_identity": true,
+      "comparison": "staging/cast-preview-v2/comparisons/rahab-original-e-ia.mp3"
+    },
+    {
+      "speaker": "dumah",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0328.wav",
+      "reference_sha256": "e1a6296782da068efbbd11c575201f528c9c472091ef3378e5a80efc6f400512",
+      "approved_identity": true
+    },
+    {
+      "speaker": "ariel",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0282.wav",
+      "reference_sha256": "b51a883a95c23d84d5fbfda685dd831eab4e183841766adad8d75bcd7970aabd",
+      "approved_identity": true
+    },
+    {
+      "speaker": "tomb_guardian",
+      "reference": "D:/Solutions/pessoal/soul-reaver-ptbr-mod/staging/catalogue-v1/audio/0266.wav",
+      "reference_sha256": "f7fc4a9edbc16d3bb932f382da4a89a1d2043122ace166126ee2460f5a5fe4e7",
+      "approved_identity": true
+    }
+  ],
+  "future_takes_approved": false,
+  "profile_plan": "staging/campaign-dub-v10/plan.json",
+  "profile_plan_sha256": "7651f857f4aecaf44ed0c205712980691c5bc2f24fa24656a8230d08e18a0ae7",
+  "seed_preservation": {
+    "policy": "Não regenerar nem alterar takes já existentes. Se um take específico precisar ser reproduzido, manter exatamente o seed, referência/hash do personagem, revisão do modelo, parâmetros e batch_size de seus metadados; não trocar seed como forma de variar a identidade vocal.",
+    "seed_is_per_take_not_per_character": true,
+    "observed_baselines": [
+      {
+        "run": "staging/campaign-dub-v10",
+        "seed": 20261019,
+        "scope": "metadados encontrados para takes existentes de Raziel, Ariel, Rahab e Guardião da Tumba; não generalizar para outros runs/personagens"
+      },
+      {
+        "run": "staging/campaign-dub-v15-isolated-182",
+        "seed": 20261018,
+        "scope": "take 4 do ID 182; SHA-256 53d5090ab71de2b36132dc89d5265894a8c88e381bbe8f8b271acf3ae7d6c80b; bytes idênticos ao v14 e à página de revisão"
+      }
+    ]
+  }
+}
