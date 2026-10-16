@@ -23,18 +23,18 @@ LOTE = {
     451: ("elder", "Deste cume, o pináculo da Catedral Silenciada está ao seu alcance. Depressa, Raziel! Com a Soul Reaver assim reforçada, nenhum obstáculo deterá seu avanço, nenhum inimigo barrará seu caminho. Mas cuidado: os vampiros deste mundo sentem suas intenções e o perseguirão em fúria desesperada.", "From this summit, the pinnacle of the Silenced Cathedral is within your reach..."),
     438: ("elder", "Está feito. Seu destino se cumpriu. O ciclo de nascimento e morte, parado e estagnado por longos anos, volta a fluir. Você fez bem, meu servo.", "It is done. Your destiny is fulfilled..."),
     430: ("elder", "Até esta pequena medida da alma de Kain lhe concedeu um grande dom. Como seu mestre, agora pode passar ao plano material quando quiser. Ainda precisa restaurar toda a sua saúde, mas já não depende de um portal.", "Even this small measure of Kain's soul has conferred on you a great gift..."),
-    425: ("elder", "Dumah e Turel, os irmãos que o lançaram no Abismo, recuaram com seus clãs para os ermos do norte de Nosgoth. O dom da alma de Rahab permite persegui-los, além de obstáculos antes intransponíveis.", "Dumah and Turel, your brothers who bore you into the Abyss..."),
+    425: ("elder", "Dumah e Turel, os irmãos que o lançaram no Abismo, recuaram com seus clãs para os ermos do norte. O dom da alma de Rahab permite persegui-los além de obstáculos intransponíveis.", "Dumah and Turel, your brothers who bore you into the Abyss..."),
     423: ("elder", "Além do turbilhão do Abismo, um túnel subterrâneo segue ao norte, até os territórios dos clãs de Dumah e Turel. Dotado da alma de Rahab, você pode nadar para entrar onde antes seu avanço era impedido.", "Beyond the maelstrom of the Abyss, a subterranean tunnel leads northward..."),
-    397: ("elder", "Volte à cidadela humana, Raziel. O templo, apesar da fachada inofensiva, está podre até o âmago e, como um câncer, espalha sua corrupção pela cidade.", "Return to the human citadel, Raziel..."),
+    397: ("elder", "Volte à cidadela humana, Raziel. O templo, apesar da fachada inofensiva, está podre até o âmago e, como um câncer, espalha corrupção pela cidade.", "Return to the human citadel, Raziel..."),
     395: ("elder", "Estas forjas são afinadas com a energia da Soul Reaver. Depois de batizar a espada nestas fontes elementais, a lâmina poderá ser imbuída desse elemento a qualquer momento.", "These forges are tuned to the Soul Reaver's energy..."),
     207: ("elder", "Que encontre paz aqui, Raziel.", "May you find peace here, Raziel."),
-    208: ("elder", "Você testa minha paciência, Raziel.", "You try my patience, Raziel."),
+    208: ("elder", "Testa minha paciência, Raziel.", "You try my patience, Raziel."),
     470: ("raziel", "Kain é deificado. Os clãs contam histórias sobre ele. Poucos sabem a verdade. Ele foi mortal um dia, como todos nós. Mas seu desprezo pela humanidade o levou a criar a mim e a meus irmãos. Eu sou Raziel, primogênito de seus tenentes. Servi a Kain por um milênio. Estive com ele e meus irmãos no alvorecer do Império. Juntos, forjamos as legiões que submeteram Nosgoth.", "Kain is deified. The clans tell tales of him..."),
     417: ("raziel", "Figuras misteriosas se moviam sob a cobertura da escuridão, seus mantos denunciando intenção de culto. Este templo parecia uma fonte de contágio. Eu encontraria um meio de infiltrar este covil de vampiros.", "Mysterious figures moved under cover of darkness..."),
     381: ("raziel", "Observei, invisível, enquanto vultos sombrios deslizavam pelos muros do templo. A cidade dormia, alheia ao perigo que rastejava logo ali fora.", "I watched unseen as shadowy figures slipped down the temple walls..."),
     377: ("raziel", "Que destino cruel. Suas almas se misturando, atadas para sempre. A recusa de Kain nos pilares as unira séculos antes.", "Such a dire fate. Their souls commingling, fettered eternally..."),
     371: ("raziel", "Que destino cruel, suas almas se misturando, atadas para sempre, tal como a recusa de Kain as unira séculos antes.", "Such a dire fate, their souls commingling, fettered eternally..."),
-    293: ("raziel", "Embora a sala parecesse vazia, estes estandartes a identificavam claramente como a câmara de audiências de Turel.", "Though the room seemed vacant, these banners clearly identified it as Turel's audience chamber."),
+    293: ("raziel", "A sala parecia vazia, mas os estandartes a identificavam: a câmara de Turel.", "Though the room seemed vacant, these banners clearly identified it as Turel's audience chamber."),
 }
 
 
