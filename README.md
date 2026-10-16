@@ -1,130 +1,206 @@
-# Soul Reaver PT-BR Mod
+<p align="center">
+  <img src="docs/assets/readme-header.png" alt="Arte conceitual de Soul Reaver PT-BR: Raziel, os pilares em ruínas e um eclipse sob luz espectral." width="1280" />
+</p>
 
-Projeto de mod para **Legacy of Kain: Soul Reaver clássico de PC** (Steam AppID 224920), com renderização 4K, tradução dos diálogos e dublagem em português brasileiro com vozes de IA distintas por personagem.
+<h1 align="center">Soul Reaver · PT-BR</h1>
 
-## Status da Implementação
+<p align="center">
+  <strong>Retorne a Nosgoth. Agora, na sua língua.</strong><br />
+  Dublagem brasileira, tradução e melhorias visuais para Legacy of Kain: Soul Reaver clássico de PC.
+</p>
 
-Auditoria atualizada em 16/10/2026: o projeto está **em andamento e não homologado**. A matriz tem 479 slots; 230 são candidatos de fala de cena, 215 permanecem desconhecidos e 34 estão em duplicatas. Seis takes foram aprovados por escuta (116, 163, 173, 206, 225 e 307), mas isso não prova cobertura total, disparo natural ou sincronia. Os detalhes e limites estão em [`validate/00-plano/STATUS-GERAL.md`](validate/00-plano/STATUS-GERAL.md).
+<p align="center">
+  <sub>WINDOWS &nbsp; · &nbsp; STEAM CLASSIC &nbsp; · &nbsp; PORTUGUÊS BRASILEIRO</sub>
+</p>
 
-A rota Unicode de legendas foi exercitada em host offline (266 páginas), mas o pacote V6 atualmente registrado usa 230 linhas ASCII sem diacríticos; não há prova de legendas acentuadas integradas no jogo. O catálogo HD contém 1.287 páginas candidatas ampliadas a 1024×1024, a ponte Frida/WARP atual passou 11 checks sintéticos, mas a ligação com o loader do jogo segue sem prova. Renderer de HUD/menus e catálogo seguem sem ligação demonstrada às chamadas reais do jogo. O perfil/captura 3840×2160 prova apenas preparação offline, não gameplay em 4K.
+<p align="center">
+  <a href="#recursos">Recursos</a> &nbsp; / &nbsp;
+  <a href="#instalador">Instalador</a> &nbsp; / &nbsp;
+  <a href="#como-usar">Como usar</a> &nbsp; / &nbsp;
+  <a href="#documentação">Documentação</a>
+</p>
 
-Para FMV, há um candidato BIK completo em 2560×1440 (`crylogo`) decodificado offline. O `intro` tem quadros ampliados e composição pronta, mas o BIK final não foi produzido; os demais vídeos HD seguem pendentes. Playback e integração no jogo não foram validados. 60 FPS também não foi alcançado: as evidências atuais indicam cerca de 30,3 Presents/s e passo fixo de ~33 ms.
+> **Em desenvolvimento · campanha parcial · ainda não homologado.**
+> O instalador e os pipelines têm validações offline. Cobertura, qualidade das vozes,
+> sincronismo e funcionamento nas cenas do jogo continuam em avaliação.
 
-O instalador tem fluxos offline em fixtures isoladas. Na atualização de 16/10, a restauração passou a acumular erros por componente e a inspeção deixou de ocultar falhas; os testes do core (31/31) e do novo caso unitário do instalador (1/1) passaram. Isso não homologa uso na instalação Steam. O estado atualizado e o histórico de validações ficam em [`validate/00-plano/`](validate/00-plano/).
+## Recursos
 
-1. **Validação de Reinserção em Runtime**:
-   - A tabela exata de 479 entradas de áudio (`voices.dat`) no executável `kain2.exe` foi decodificada e conferida byte a byte.
-   - O índice 291 (fala de Raziel com Dumah) foi reinserido e reproduzido em runtime instrumentado com buffers idênticos capturados e saída de áudio confirmada.
-   - Veja [`docs/VALIDACAO-REINSERCAO-VOZ.md`](docs/VALIDACAO-REINSERCAO-VOZ.md).
+O projeto reúne localização em **pt-BR**, vozes distintas por personagem e melhorias
+opcionais para revisitar o clássico. A base suportada é a edição **Steam Classic**
+(AppID `224920`), com integridade conferida antes de alterar arquivos.
 
-2. **Pipeline de Áudio e Extração**:
-   - Ferramenta [`tools/audio_pipeline.py`](tools/audio_pipeline.py) extrai integralmente os 479 slots de áudio com hashes conferidos e gera catálogos.
-   - Ferramenta de empacotamento compila apenas áudios aprovados, alinhados à taxa de 22.050 Hz PCM16 com silêncios ajustados, sem modificar executáveis ou DATs fora dos limites.
+| Frente | O que o projeto oferece | Situação |
+| :--- | :--- | :--- |
+| **Vozes de Nosgoth** | Dublagem local com Qwen3-TTS, perfis consistentes por personagem e revisão humana. | Campanha parcial; avaliação por take e cena. |
+| **Cada palavra, um novo sentido** | Tradução de menus, dicas e legendas, com pesquisa de suporte a Unicode. | Integração de acentos no jogo pendente. |
+| **A história ganha vida** | Vídeos PT-BR em um componente próprio, com instalação e restauração independentes. | Playback e versões HD em validação. |
+| **Um novo olhar para o abismo** | Perfil dgVoodoo em 3840×2160 e widescreen Hor+ 16:9 opcionais. | Preparação offline; gameplay ainda pendente. |
+| **Controle nas suas mãos** | Painel DualSense, mapa de botões, acompanhante local e faixa de ícones em janela. | Limites de dispositivos e funções documentados. |
+| **Um caminho de volta** | Instalador com SHA-256, backups, registros de propriedade e restauração por componente. | Fluxos exercitados em cópias isoladas. |
 
-3. **Síntese Local e Benchmark na GPU**:
-   - Ferramenta [`tools/generate_voices.py`](tools/generate_voices.py) executa geração offline com Qwen3-TTS em CUDA BF16.
-   - Benchmark comparativo executado na RTX 4060 Ti para lotes de 1, 2 e 4 falas com medição de VRAM, RTF e persistência atômica.
+Texturas HD e interface/HUD são componentes **experimentais**. Instalar seus arquivos
+não comprova que o jogo os esteja carregando.
 
-4. **Núcleo de Gerenciamento e Segurança em Rust (`crates/mod-core`)**:
-   - Biblioteca Rust e ferramenta CLI `srmod`.
-   - Gerenciamento transacional com journal de estados (`.soul-reaver-ptbr`), travas de processo (`fs2`), proteção contra links e junctions.
-   - Criação e validação automática de backup do `voices.dat` original, com garantia de integridade SHA-256 e restauração segura.
-   - Testes de transação com fixture isolado e piloto real. Regressão que recusa cobertura fictícia com áudio original e corrige a contagem de journals legados.
+## Instalador
 
-5. **Dublagem e legendas em produção**:
-   - Há 479 slots na base original, incluindo falas, vocalizações e material não utilizado. A matriz atual tem 230 candidatos de fala de cena, mas não há cobertura total confirmada; seis takes estão aprovados por escuta.
-   - Existe evidência histórica de runtime para o piloto da entrada 291 e trechos iniciais. Ela não comprova disparo e sincronia do conjunto atual nem cobertura das demais cenas.
-   - O catálogo atual de FMV ainda tem associação de falas e eventos naturais pendentes. Para qualidade HD, apenas `crylogo` tem candidato completo 2560×1440 decodificado offline; veja o status geral para detalhes.
-   - O pacote V6 registrado usa TSV ASCII sem acentos. A rota Unicode foi exercitada em host offline, mas ainda não foi comprovada no renderer do jogo. JSON/SRT soltos não comprovam integração.
-6. **Aplicativo Instalador Desktop (`installer/`)**:
-   - Frontend em React 19, TypeScript, Vite e Tailwind CSS 4.
-   - Identidade **Nosgoth**: ilustração original, bronze e luz espectral; janela sem moldura nativa do Windows, com controles próprios.
-   - Backend nativo em Tauri 2 com comunicação tipada via IPC e streaming de eventos de progresso.
-   - Seleção automática da biblioteca Steam ou seleção manual com detecção e inspeção de integridade.
-   - Instalação por componente com journal e verificação de hash: dublagem, localização (menus, vídeos e legendas), 4K dgVoodoo + Hor+ 16:9 e os componentes externos experimentais (texturas HD, interface/HUD).
-   - Ações de **Instalar**, **Reparar** (reaplica de forma idempotente) e **Restaurar tudo**, além de um painel de **Diagnóstico** que reporta hash do executável, base compatível, jogo fechado e o estado de cada componente.
-   - Prova offline numa cópia isolada em `tools/verify_installer_offline.py`; roteiro de rodada no jogo em `validate/17-instalador/ROTEIRO-VALIDACAO-JOGO.md`.
+Uma interface inspirada em Nosgoth: bronze, pedra e luz espectral, com janela sem
+moldura nativa e controles próprios.
 
-## Como Executar
+<p align="center">
+  <img src="docs/assets/installer-nosgoth.png" alt="Tela A jornada do instalador Nosgoth, com apresentação do projeto e uma instalação Steam Classic reconhecida." width="1100" />
+</p>
 
-### Executar o Instalador Desktop (Release)
+<p align="center"><sub>Interface real do instalador durante a inspeção de arquivos. A captura não representa gameplay.</sub></p>
 
-A interface Nosgoth organiza a instalação em **A jornada**, **Componentes**,
-**Restauração** e **Diagnóstico e controle**. A revisão exibe as escolhas antes
-de aplicar; o progresso representa a etapa real informada pelo Rust. Pausa e
-parada são cooperativas, e o fechamento é protegido durante operações de escrita.
-Veja [interface, compilação e validação](docs/INSTALADOR-NOSGOTH.md).
+1. **Encontre sua cópia.** Detecção da biblioteca Steam ou seleção manual da pasta.
+2. **Escolha os componentes.** Disponibilidade, cobertura e itens experimentais aparecem antes de instalar.
+3. **Revise e aplique.** Confirme o destino e acompanhe o progresso real de cada etapa.
+4. **Abra o jogo quando quiser.** Após “Componentes aplicados”, o botão **Abrir jogo** inicia a cópia selecionada por clique, sem exigir DualSense.
+5. **Consulte ou restaure.** Diagnóstico, reparo e restauração usam os registros de propriedade e os backups verificados.
 
-O instalador inclui um painel **Controle DualSense**, com detecção, instalação
-segura, mapa dos botões e **Jogar com DualSense**. Os ícones aparecem numa faixa
-sobre o jogo em janela. O componente usa o teclado padrão e tem remoção própria;
-veja [controles, limites e validação](docs/DUALSENSE.md).
+A pausa e a parada aguardam unidades seguras de trabalho. O fechamento da janela é
+protegido durante operações, e o jogo nunca abre automaticamente ao concluir a instalação.
+O painel **Controle DualSense** mantém sua opção própria de abertura com o acompanhante.
 
-```powershell
-& "target\release\soul-reaver-mod-installer.exe"
-```
+[Interface e compilação](docs/INSTALADOR-NOSGOTH.md) · [Controles e limites do DualSense](docs/DUALSENSE.md)
 
-### Testes do Core (Rust)
+## Estado do projeto
 
-```powershell
-cargo test -p soul-reaver-mod-core
-```
+**Retrato da auditoria de 16/10/2026.** A matriz de áudio contém **479 slots físicos**;
+eles incluem falas, vocalizações, duplicatas e material ainda não identificado.
+Contar slots substituídos não mede a cobertura da campanha.
 
-### CLI de Modificação
+| Área | Evidência disponível | O que falta comprovar |
+| :--- | :--- | :--- |
+| **Áudio** | Tabela de slots decodificada; piloto da entrada 291 exercitado em runtime instrumentado. | Disparo natural, qualidade e sincronismo do conjunto atual. |
+| **Localização** | Rota Unicode exercitada em host offline; pacote V6 registrado com legendas ASCII. | Texto acentuado integrado ao renderer do jogo. |
+| **Vídeos** | Candidato `crylogo` em 2560×1440 decodificado offline. | Demais BIKs HD, playback e integração. |
+| **Gráficos** | Perfil e capturas de preparação em 3840×2160. | Gameplay, proporções, efeitos e estabilidade em 4K. |
+| **Texturas e HUD** | Catálogos e pontes experimentais exercitados fora do jogo. | Ligação com o loader e as chamadas reais do renderer. |
+| **Instalador** | Aplicação e restauração em fixtures; leitura do registro legado de localização/vídeos corrigida. | Validação completa do pacote em uso natural no jogo. |
 
-```powershell
-cargo run -p soul-reaver-mod-core --bin srmod -- inspect "<caminho-do-jogo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- components "<caminho-do-jogo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- apply "<caminho-do-jogo>" "<caminho-manifesto>"
-cargo run -p soul-reaver-mod-core --bin srmod -- restore "<caminho-do-jogo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- assets-apply "<caminho-do-jogo>" "<assets.json>" "<backup-externo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- assets-restore "<caminho-do-jogo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- graphics-apply "<caminho-do-jogo>" "<pasta-graphics>" [widescreen]
-cargo run -p soul-reaver-mod-core --bin srmod -- graphics-restore "<caminho-do-jogo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- textures-apply "<caminho-do-jogo>" "<textures.json>" "<backup-externo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- textures-restore "<caminho-do-jogo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- ui-apply "<caminho-do-jogo>" "<ui.json>" "<backup-externo>"
-cargo run -p soul-reaver-mod-core --bin srmod -- ui-restore "<caminho-do-jogo>"
-```
+<details>
+<summary><strong>Ver os números e limites da auditoria</strong></summary>
 
-Na CLI, `apply`/`restore` operam as vozes; `assets-*` a localização; `graphics-*` o
-wrapper dgVoodoo 4K e o patch Hor+ 16:9; `textures-*` e `ui-*` os componentes externos
-experimentais. Cada componente tem journal próprio e backup verificado. O aplicativo
-desktop coordena todos em uma única operação por componente.
+- **Áudio:** 230 candidatos de fala de cena, 215 slots desconhecidos e 34 em duplicatas.
+  Seis takes foram aprovados por escuta: `116`, `163`, `173`, `206`, `225` e `307`.
+  Essa aprovação não se estende automaticamente aos demais takes ou à campanha inteira.
+- **Legendas:** a rota Unicode passou por um host offline com 266 páginas. O pacote V6
+  registrado contém 230 linhas ASCII sem diacríticos. JSON/SRT soltos não comprovam
+  integração no jogo.
+- **Texturas:** 1.287 páginas candidatas ampliadas para 1024×1024; a ponte Frida/WARP
+  passou por 11 checks sintéticos. O carregamento dessas páginas no jogo permanece sem prova.
+- **FMVs:** `crylogo` tem um candidato BIK completo em 2560×1440. O `intro` tem quadros
+  ampliados e composição pronta, mas seu BIK HD final ainda não foi produzido;
+  os demais vídeos HD seguem pendentes.
+- **60 FPS:** ainda não alcançado. As medições registradas indicam cerca de 30,3
+  Presents/s e passo fixo de aproximadamente 33 ms.
+- **Preservação:** build, teste sintético, inspeção de arquivos e demonstração visual
+  são evidências distintas de uma cena funcionando no jogo.
 
-### Montar a árvore produtiva e testar offline
+Os relatórios e materiais para revisão humana ficam localmente em `validate/`,
+fora do Git. A metodologia e os limites da reinserção de áudio estão na
+[documentação de validação](docs/VALIDACAO-REINSERCAO-VOZ.md).
 
-A fonte de verdade do instalador é `modules/` (uma pasta auto-contida por
-módulo: dublagem, localização, vídeos, 4K, texturas, interface). Detalhes do
-mapa módulo → componente em [`docs/MODULOS.md`](docs/MODULOS.md).
+</details>
 
-```powershell
-python tools/organize_modules.py --dry-run   # plano
-python tools/organize_modules.py             # promove candidatos para modules/
+## Como usar
 
-python tools/verify_installer_offline.py `
-  --steam "D:\SteamLibrary\steamapps\common\Legacy of Kain Soul Reaver" `
-  --bundle modules --work staging/install-test-modules `
-  --srmod-bin target/debug/srmod.exe
-```
+### Preparar o ambiente
 
-O verificador reconstrói uma cópia limpa a partir dos originais, aplica os módulos,
-testa conflito de wrapper, restaura e confere que o executável, o save e uma DLL de outro
-mod permaneceram intactos. Ele nunca abre o jogo nem toca a Steam.
+É necessária uma cópia própria e compatível de **Soul Reaver Steam Classic**.
+Para compilar o instalador, use Rust/Cargo, Node.js, pnpm e Visual Studio Build Tools
+com C++ no Windows. As dependências Rust e JavaScript precisam estar instaladas;
+a compilação Rust abaixo usa o cache local, sem acesso à rede.
 
-### Build do Instalador Desktop
+**O Git contém o código, não os pacotes do mod.** Para aplicar conteúdo, a árvore
+local `modules/` deve conter os manifestos e payloads correspondentes.
+Consulte a [organização dos módulos](docs/MODULOS.md) antes de preparar uma instalação.
+
+### Compilar e abrir o instalador
+
+Na raiz do repositório, com as dependências já disponíveis:
 
 ```powershell
 pnpm --dir installer build
+cargo build --offline --locked --release -p soul-reaver-mod-installer --target-dir target
+& ".\target\release\soul-reaver-mod-installer.exe"
 ```
 
-## Documentação e Referências
+A build incorpora a interface ao executável. Após alterar o frontend, compile-o
+antes de recompilar o backend Rust.
 
-- [`docs/PLANO-MOD-4K-PTBR.md`](docs/PLANO-MOD-4K-PTBR.md): Plano mestre, arquitetura, marcos de entrega e critérios de aceite.
-- [`docs/MODULOS.md`](docs/MODULOS.md): Fonte de verdade única do instalador — árvore `modules/`, mapa módulo → componente e verificação offline.
-- [`docs/VALIDACAO-REINSERCAO-VOZ.md`](docs/VALIDACAO-REINSERCAO-VOZ.md): Evidências da reinserção de áudio e limites de execução.
-- [`REFERENCES.md`](REFERENCES.md): Lista de documentações oficiais, ferramentas e referências técnicas consultadas.
+### Verificar o core
 
-## Conteúdo do Repositório
+```powershell
+cargo test --offline --locked -p soul-reaver-mod-core -p soul-reaver-mod-installer
+```
 
-Este projeto não inclui o jogo original, seus executáveis, arquivos DAT/BIG/BIK, saves ou pesos de modelos de IA. É necessária uma cópia própria e compatível do jogo da edição Steam clássica.
+Os testes usam fixtures isoladas. Eles não substituem a validação da campanha.
+
+<details>
+<summary><strong>CLI: inspeção, aplicação e restauração por componente</strong></summary>
+
+Para inspecionar uma cópia sem aplicar componentes:
+
+```powershell
+cargo run -p soul-reaver-mod-core --bin srmod -- inspect "<pasta-do-jogo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- components "<pasta-do-jogo>"
+```
+
+Os comandos abaixo modificam a instalação selecionada. Use uma cópia de teste e
+mantenha os backups fora da pasta do jogo.
+
+```powershell
+cargo run -p soul-reaver-mod-core --bin srmod -- apply "<pasta-do-jogo>" "<manifesto-de-vozes>"
+cargo run -p soul-reaver-mod-core --bin srmod -- restore "<pasta-do-jogo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- assets-apply "<pasta-do-jogo>" "<assets.json>" "<backup-externo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- assets-restore "<pasta-do-jogo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- video-apply "<pasta-do-jogo>" "<video.json>" "<backup-externo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- video-restore "<pasta-do-jogo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- graphics-apply "<pasta-do-jogo>" "<pasta-graphics>" widescreen
+cargo run -p soul-reaver-mod-core --bin srmod -- graphics-restore "<pasta-do-jogo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- textures-apply "<pasta-do-jogo>" "<textures.json>" "<backup-externo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- textures-restore "<pasta-do-jogo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- ui-apply "<pasta-do-jogo>" "<ui.json>" "<backup-externo>"
+cargo run -p soul-reaver-mod-core --bin srmod -- ui-restore "<pasta-do-jogo>"
+```
+
+`apply`/`restore` operam as vozes; `assets-*`, menus e legendas; `video-*`, vídeos;
+`graphics-*`, dgVoodoo e widescreen; `textures-*` e `ui-*`, os módulos experimentais.
+Cada componente tem seu próprio registro de propriedade e restauração.
+
+</details>
+
+## Por dentro
+
+| Camada | Stack e responsabilidade |
+| :--- | :--- |
+| [`crates/mod-core/`](crates/mod-core/) | Rust, CLI `srmod`, hashes SHA-256, journals atômicos, travas `fs2` e restauração. |
+| [`installer/`](installer/) | Tauri 2, React 19, TypeScript, Vite e Tailwind CSS 4. |
+| [`tools/`](tools/) | Extração, síntese Qwen3-TTS local em CUDA BF16, empacotamento e verificação offline. |
+| [`content/`](content/) | Planos de tradução, direção e revisão das vozes e da localização. |
+| `modules/` | Manifestos e payloads locais prontos para o instalador; fora do Git. |
+
+O jogador recebe os pacotes de áudio prontos; não precisa executar o modelo de IA.
+O desenvolvimento e a geração preservam a instalação original e os saves.
+
+## Documentação
+
+| Guia | Conteúdo |
+| :--- | :--- |
+| [Plano do mod](docs/PLANO-MOD-4K-PTBR.md) | Escopo, marcos de entrega e critérios de aceite. |
+| [Instalador Nosgoth](docs/INSTALADOR-NOSGOTH.md) | Interface, compilação, estados e validação. |
+| [Módulos produtivos](docs/MODULOS.md) | Estrutura local dos pacotes e mapa de componentes. |
+| [Controle DualSense](docs/DUALSENSE.md) | Botões, instalação, limitações e preservação. |
+| [Reinserção de voz](docs/VALIDACAO-REINSERCAO-VOZ.md) | Evidências do piloto e limites da validação em runtime. |
+| [Referências](REFERENCES.md) | Ferramentas, fontes e documentação técnica. |
+
+---
+
+Projeto da comunidade, sem afiliação oficial. Este repositório não inclui o jogo,
+seus executáveis, arquivos DAT/BIG/BIK, saves, extrações ou pesos de modelos de IA.
+Os direitos de *Legacy of Kain: Soul Reaver* pertencem aos seus respectivos titulares.
+
+<sub>Arte conceitual do cabeçalho gerada por IA para este projeto; não é uma captura do jogo.</sub>
