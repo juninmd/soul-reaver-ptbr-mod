@@ -393,6 +393,46 @@ static ULONGLONG g_next_dualsense_search = 0;
 static bool g_prev_start_pressed = false;
 static void (__cdecl* original_UpdateInput)() = nullptr;
 
+struct HapticState {
+    ULONGLONG expire_tick = 0;
+    WORD left_motor = 0;
+    WORD right_motor = 0;
+};
+static HapticState g_haptic;
+
+static void trigger_rumble(WORD left, WORD right, DWORD duration_ms) {
+    g_haptic.left_motor = left;
+    g_haptic.right_motor = right;
+    g_haptic.expire_tick = GetTickCount64() + duration_ms;
+}
+
+static void update_haptics() {
+    static HMODULE s_xinput = nullptr;
+    using SetStateFn = DWORD(WINAPI*)(DWORD, void*);
+    static SetStateFn s_set_state = nullptr;
+    static bool s_tried_load = false;
+    if (!s_tried_load) {
+        s_tried_load = true;
+        s_xinput = LoadLibraryA("xinput1_4.dll");
+        if (!s_xinput) s_xinput = LoadLibraryA("xinput1_3.dll");
+        if (!s_xinput) s_xinput = LoadLibraryA("xinput9_1_0.dll");
+        if (s_xinput) {
+            s_set_state = reinterpret_cast<SetStateFn>(GetProcAddress(s_xinput, "XInputSetState"));
+            if (s_set_state) log_line("XInput haptic feedback driver initialized");
+        }
+    }
+
+    if (!s_set_state) return;
+
+    struct { WORD wLeftMotorSpeed; WORD wRightMotorSpeed; } vib{};
+    const ULONGLONG now = GetTickCount64();
+    if (now < g_haptic.expire_tick) {
+        vib.wLeftMotorSpeed = g_haptic.left_motor;
+        vib.wRightMotorSpeed = g_haptic.right_motor;
+    }
+    s_set_state(0, &vib);
+}
+
 static BOOL CALLBACK enum_dualsense_callback(LPCDIDEVICEINSTANCEA lpddi, LPVOID pvRef) {
     auto pGuid = reinterpret_cast<GUID*>(pvRef);
     *pGuid = lpddi->guidInstance;
@@ -610,6 +650,18 @@ static void poll_dualsense_and_inject() {
     if (btn_cross || btn_select) {
         if (target_wnd) PostMessageA(target_wnd, WM_KEYDOWN, VK_SPACE, 0x00390001);
     }
+
+    static bool prev_sq = false, prev_cr = false, prev_tr = false, prev_r3 = false;
+    if (btn_square && !prev_sq) trigger_rumble(0x6000, 0x9000, 90);    // Attack (claws/weapon slash)
+    if (btn_cross && !prev_cr)  trigger_rumble(0x2000, 0x4000, 50);    // Jump / Glide leap
+    if (btn_triangle && !prev_tr) trigger_rumble(0x9000, 0xb000, 160); // Shift Realm / Cast Glyph
+    if (btn_r3 && !prev_r3) trigger_rumble(0x0000, 0xa000, 45);        // Camera snap click
+    prev_sq = btn_square;
+    prev_cr = btn_cross;
+    prev_tr = btn_triangle;
+    prev_r3 = btn_r3;
+
+    update_haptics();
 }
 
 static void __cdecl hook_UpdateInput() {
