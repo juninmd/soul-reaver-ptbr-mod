@@ -534,6 +534,11 @@ static void poll_dualsense_and_inject() {
     const bool final_move_up   = move_up   || (btn_r1 && cam_up);
     const bool final_move_down = move_down || (btn_r1 && cam_down);
 
+    bool analog_walk = false;
+    LONG stick_dx = js.lX - kCenter;
+    LONG stick_dy = js.lY - kCenter;
+    double stick_dist = sqrt(static_cast<double>(stick_dx * stick_dx + stick_dy * stick_dy));
+
     if (base == 0x400000) {
         auto* cam = reinterpret_cast<unsigned char*>(base + 0x864560);
         if (cam) {
@@ -543,6 +548,23 @@ static void poll_dualsense_and_inject() {
             } else if (!btn_r1) {
                 if (cam_up && pitch > -500) pitch -= 12;
                 if (cam_down && pitch < 500) pitch += 12;
+            }
+        }
+
+        auto* player = *reinterpret_cast<unsigned char**>(base + 0x866d4c);
+        if (player && stick_dist > kDeadzone && !btn_r1) {
+            double angle_rad = atan2(static_cast<double>(stick_dx), -static_cast<double>(stick_dy));
+            short stick_psx = static_cast<short>((angle_rad / (2.0 * 3.14159265358979323846)) * 4096.0);
+            short cam_yaw = cam ? *reinterpret_cast<short*>(cam + 0x138) : 0;
+            short target_yaw = (cam_yaw + stick_psx) & 0x0FFF;
+
+            short& player_yaw = *reinterpret_cast<short*>(player + 0x50);
+            short diff = (target_yaw - player_yaw) & 0x0FFF;
+            if (diff > 2048) diff -= 4096;
+            player_yaw = (player_yaw + (diff / 4)) & 0x0FFF;
+
+            if (stick_dist < 18000) {
+                analog_walk = true;
             }
         }
     }
@@ -600,7 +622,7 @@ static void poll_dualsense_and_inject() {
         if (btn_circle)   kbd[0x20] |= 0x80;
         if (btn_triangle) kbd[0x21] |= 0x80;
         if (btn_l1)       kbd[0x1f] |= 0x80;
-        if (btn_r1)       kbd[0x2e] |= 0x80;
+        if (btn_r1 || analog_walk) kbd[0x2e] |= 0x80;
         if (btn_l2)       kbd[0x52] |= 0x80;
         if (btn_r2)       kbd[0x9d] |= 0x80;
         if (btn_start)    kbd[0x01] |= 0x80;
