@@ -470,8 +470,10 @@ static void poll_dualsense_and_inject() {
     const bool move_left  = stick_left  || dpad_left;
     const bool move_right = stick_right || dpad_right;
 
-    const bool cam_left  = (js.lZ < kCenter - kDeadzone) || (js.lRz < kCenter - kDeadzone);
-    const bool cam_right = (js.lZ > kCenter + kDeadzone) || (js.lRz > kCenter + kDeadzone);
+    const bool cam_left  = (js.lZ < kCenter - kDeadzone);
+    const bool cam_right = (js.lZ > kCenter + kDeadzone);
+    const bool cam_up    = (js.lRz < kCenter - kDeadzone);
+    const bool cam_down  = (js.lRz > kCenter + kDeadzone);
 
     auto btn = [&](int idx) -> bool {
         return (idx >= 0 && idx < 32) && ((js.rgbButtons[idx] & 0x80) != 0);
@@ -489,6 +491,22 @@ static void poll_dualsense_and_inject() {
     const bool btn_select   = btn(8);
     const bool btn_start    = btn(9) || btn(12) || btn(13);
 
+    const bool final_move_up   = move_up   || (btn_r1 && cam_up);
+    const bool final_move_down = move_down || (btn_r1 && cam_down);
+
+    if (base == 0x400000) {
+        auto* cam = reinterpret_cast<unsigned char*>(base + 0x864560);
+        if (cam) {
+            short& pitch = *reinterpret_cast<short*>(cam + 0x136);
+            if (btn_r3) {
+                pitch = 0;
+            } else if (!btn_r1) {
+                if (cam_up && pitch > -500) pitch -= 12;
+                if (cam_down && pitch < 500) pitch += 12;
+            }
+        }
+    }
+
     auto pad1_ptr = *reinterpret_cast<unsigned char**>(base + 0x8651c8);
     if (!pad1_ptr) pad1_ptr = reinterpret_cast<unsigned char*>(base + 0x861040);
     if (pad1_ptr) {
@@ -498,9 +516,9 @@ static void poll_dualsense_and_inject() {
 
         if (btn_select)   buttons &= ~0x0001;
         if (btn_start)    buttons &= ~0x0008;
-        if (move_up)      buttons &= ~0x0010;
+        if (final_move_up)   buttons &= ~0x0010;
         if (move_right)   buttons &= ~0x0020;
-        if (move_down)    buttons &= ~0x0040;
+        if (final_move_down) buttons &= ~0x0040;
         if (move_left)    buttons &= ~0x0080;
         if (btn_l2)       buttons &= ~0x0100;
         if (btn_r2)       buttons &= ~0x0200;
@@ -517,9 +535,9 @@ static void poll_dualsense_and_inject() {
         uint16_t& buttons0 = *reinterpret_cast<uint16_t*>(pad0_ptr + 2);
         if (btn_select)   buttons0 &= ~0x0001;
         if (btn_start)    buttons0 &= ~0x0008;
-        if (move_up)      buttons0 &= ~0x0010;
+        if (final_move_up)   buttons0 &= ~0x0010;
         if (move_right)   buttons0 &= ~0x0020;
-        if (move_down)    buttons0 &= ~0x0040;
+        if (final_move_down) buttons0 &= ~0x0040;
         if (move_left)    buttons0 &= ~0x0080;
         if (btn_l2)       buttons0 &= ~0x0100;
         if (btn_r2)       buttons0 &= ~0x0200;
@@ -533,8 +551,8 @@ static void poll_dualsense_and_inject() {
 
     auto kbd = reinterpret_cast<unsigned char*>(base + 0x866900);
     if (kbd) {
-        if (move_up)      kbd[0xc8] |= 0x80;
-        if (move_down)    kbd[0xd0] |= 0x80;
+        if (final_move_up)   kbd[0xc8] |= 0x80;
+        if (final_move_down) kbd[0xd0] |= 0x80;
         if (move_left)    kbd[0xcb] |= 0x80;
         if (move_right)   kbd[0xcd] |= 0x80;
         if (btn_square)   kbd[0x1e] |= 0x80;
