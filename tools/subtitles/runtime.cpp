@@ -188,6 +188,14 @@ static void __cdecl subtitle_flush() {
         const unsigned char old_color = color;
         // Keep the existing game's buffer well below its 2048-character capacity.
         if (*reinterpret_cast<int*>(base + 0x8640a8) < 1700) {
+            // High-contrast dropshadow for readability against bright backgrounds
+            color = 3;
+            for (size_t i = page * 2; i < std::min(lines.size(), page * 2 + 2); ++i) {
+                x = std::max(10, (512 - string_width(lines[i].c_str())) / 2) + 1;
+                y = 199 + static_cast<int>(i % 2) * 13;
+                print_text("%s", lines[i].c_str());
+            }
+            // Main text in gold
             color = 0;
             for (size_t i = page * 2; i < std::min(lines.size(), page * 2 + 2); ++i) {
                 x = std::max(10, (512 - string_width(lines[i].c_str())) / 2);
