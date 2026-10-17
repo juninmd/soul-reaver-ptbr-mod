@@ -5,10 +5,16 @@
 #define INITGUID
 #define DIRECTINPUT_VERSION 0x0500
 #include <windows.h>
+#include <objidl.h>
+#include <algorithm>
+namespace Gdiplus {
+    using std::min;
+    using std::max;
+}
+#include <gdiplus.h>
 #include <dinput.h>
 #include <mmsystem.h>
 #include <bcrypt.h>
-#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstring>
@@ -82,9 +88,301 @@ static bool verified_executable() {
         || strcmp(hex, "396a757334daa8fdf8930de70a63929bbe0cb0d6bc3250ce5a2dd50056c1e243") == 0;
 }
 
-static bool load_captions() {
+struct UnicodePage {
+    std::wstring text;
+    ULONGLONG start_ms = 0;
+    ULONGLONG end_ms = 0;
+};
+
+struct UnicodeCaption {
+    std::wstring text;
+    ULONGLONG duration_ms = 0;
+    std::vector<UnicodePage> pages;
+};
+
+static std::array<UnicodeCaption, 479> unicode_captions;
+static bool has_unicode_captions = false;
+
+static bool parse_unicode_captions(const std::string& json) {
+    size_t pos = json.find("\"captions\"");
+    if (pos == std::string::npos) return false;
+
+    while ((pos = json.find("\"id\":", pos)) != std::string::npos) {
+        pos += 5;
+        while (pos < json.size() && (json[pos] == ' ' || json[pos] == '\t')) pos++;
+        int id = 0;
+        while (pos < json.size() && json[pos] >= '0' && json[pos] <= '9') {
+            id = id * 10 + (json[pos] - '0');
+            pos++;
+        }
+        if (id < 0 || id >= 479) continue;
+
+        size_t next_id = json.find("\"id\":", pos);
+
+        ULONGLONG duration = 0;
+        size_t dur_pos = json.find("\"duration_ms\":", pos);
+        if (dur_pos != std::string::npos && (next_id == std::string::npos || dur_pos < next_id)) {
+            dur_pos += 14;
+            while (dur_pos < json.size() && (json[dur_pos] == ' ' || json[dur_pos] == '\t')) dur_pos++;
+            while (dur_pos < json.size() && json[dur_pos] >= '0' && json[dur_pos] <= '9') {
+                duration = duration * 10 + (json[dur_pos] - '0');
+                dur_pos++;
+            }
+        }
+
+        std::string full_text;
+        size_t text_pos = json.find("\"text\":", pos);
+        if (text_pos != std::string::npos && (next_id == std::string::npos || text_pos < next_id)) {
+            text_pos = json.find('"', text_pos + 7);
+            if (text_pos != std::string::npos) {
+                text_pos++;
+                size_t text_end = text_pos;
+                while (text_end < json.size() && json[text_end] != '"') {
+                    if (json[text_end] == '\\' && text_end + 1 < json.size()) text_end += 2;
+                    else text_end++;
+                }
+                full_text = json.substr(text_pos, text_end - text_pos);
+            }
+        }
+
+        UnicodeCaption cap;
+        cap.duration_ms = duration;
+        if (!full_text.empty()) {
+            int wlen = MultiByteToWideChar(CP_UTF8, 0, full_text.c_str(), static_cast<int>(full_text.size()), nullptr, 0);
+            if (wlen > 0) {
+                cap.text.resize(wlen);
+                MultiByteToWideChar(CP_UTF8, 0, full_text.c_str(), static_cast<int>(full_text.size()), &cap.text[0], wlen);
+            }
+        }
+
+        size_t pages_pos = json.find("\"pages\":", pos);
+        if (pages_pos != std::string::npos && (next_id == std::string::npos || pages_pos < next_id)) {
+            size_t pages_end = json.find(']', pages_pos);
+            if (pages_end != std::string::npos) {
+                size_t p_cur = pages_pos;
+                while ((p_cur = json.find('{', p_cur)) != std::string::npos && p_cur < pages_end) {
+                    size_t p_obj_end = json.find('}', p_cur);
+                    if (p_obj_end == std::string::npos || p_obj_end > pages_end) break;
+                    std::string obj = json.substr(p_cur, p_obj_end - p_cur + 1);
+
+                    std::string p_text;
+                    size_t pt = obj.find("\"text\":");
+                    if (pt != std::string::npos) {
+                        pt = obj.find('"', pt + 7);
+                        if (pt != std::string::npos) {
+                            pt++;
+                            size_t pte = pt;
+                            while (pte < obj.size() && obj[pte] != '"') {
+                                if (obj[pte] == '\\' && pte + 1 < obj.size()) pte += 2;
+                                else pte++;
+                            }
+                            p_text = obj.substr(pt, pte - pt);
+                        }
+                    }
+
+                    ULONGLONG s_ms = 0, e_ms = 0;
+                    size_t ps = obj.find("\"start_ms\":");
+                    if (ps != std::string::npos) {
+                        ps += 11;
+                        while (ps < obj.size() && (obj[ps] == ' ' || obj[ps] == '\t')) ps++;
+                        while (ps < obj.size() && obj[ps] >= '0' && obj[ps] <= '9') {
+                            s_ms = s_ms * 10 + (obj[ps] - '0');
+                            ps++;
+                        }
+                    }
+                    size_t pe = obj.find("\"end_ms\":");
+                    if (pe != std::string::npos) {
+                        pe += 9;
+                        while (pe < obj.size() && (obj[pe] == ' ' || obj[pe] == '\t')) pe++;
+                        while (pe < obj.size() && obj[pe] >= '0' && obj[pe] <= '9') {
+                            e_ms = e_ms * 10 + (obj[pe] - '0');
+                            pe++;
+                        }
+                    }
+
+                    if (!p_text.empty()) {
+                        UnicodePage page;
+                        page.start_ms = s_ms;
+                        page.end_ms = e_ms;
+                        int pwlen = MultiByteToWideChar(CP_UTF8, 0, p_text.c_str(), static_cast<int>(p_text.size()), nullptr, 0);
+                        if (pwlen > 0) {
+                            page.text.resize(pwlen);
+                            MultiByteToWideChar(CP_UTF8, 0, p_text.c_str(), static_cast<int>(p_text.size()), &page.text[0], pwlen);
+                        }
+                        cap.pages.push_back(page);
+                    }
+                    p_cur = p_obj_end + 1;
+                }
+            }
+        }
+
+        if (cap.pages.empty() && !cap.text.empty()) {
+            UnicodePage page;
+            page.text = cap.text;
+            page.start_ms = 0;
+            page.end_ms = cap.duration_ms ? cap.duration_ms : 3000;
+            cap.pages.push_back(page);
+        }
+
+        if (!cap.text.empty()) {
+            unicode_captions[id] = cap;
+            durations[id] = cap.duration_ms;
+            has_unicode_captions = true;
+        }
+    }
+    return has_unicode_captions;
+}
+
+static bool load_unicode_captions() {
     std::vector<unsigned char> bytes;
-    if (!read_file(directory() + L".soul-reaver-ptbr\\subtitles.tsv", bytes, 256 * 1024)) return false;
+    bool ok = read_file(directory() + L".soul-reaver-ptbr\\subtitles-unicode-v1.json", bytes, 2 * 1024 * 1024)
+           || read_file(directory() + L".soul-reaver-ptbr\\asset-captions-unicode-v1.json", bytes, 2 * 1024 * 1024);
+    if (!ok) return false;
+    std::string data(bytes.begin(), bytes.end());
+    return parse_unicode_captions(data);
+}
+
+static ULONG_PTR g_gdiplus_token = 0;
+static HWND g_overlay_hwnd = nullptr;
+static bool g_overlay_inited = false;
+static bool g_overlay_available = false;
+
+static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+static void ensure_overlay_window(HWND game_hwnd) {
+    if (g_overlay_inited) return;
+    g_overlay_inited = true;
+
+    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+    Gdiplus::GdiplusStartup(&g_gdiplus_token, &gdiplusStartupInput, nullptr);
+
+    WNDCLASSEXW wc = { sizeof(WNDCLASSEXW) };
+    wc.lpfnWndProc = OverlayWndProc;
+    wc.hInstance = self_module;
+    wc.lpszClassName = L"SR_VectorSubtitleOverlay";
+    RegisterClassExW(&wc);
+
+    int screen_w = GetSystemMetrics(SM_CXSCREEN);
+    int screen_h = GetSystemMetrics(SM_CYSCREEN);
+
+    g_overlay_hwnd = CreateWindowExW(
+        WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+        L"SR_VectorSubtitleOverlay",
+        L"",
+        WS_POPUP,
+        0, 0, screen_w, screen_h,
+        game_hwnd, nullptr, self_module, nullptr
+    );
+
+    if (g_overlay_hwnd) {
+        g_overlay_available = true;
+        log_line("Vector HD subtitle overlay initialized");
+    }
+}
+
+static void render_vector_subtitle(const std::wstring& text) {
+    if (!g_overlay_hwnd) return;
+    if (text.empty()) {
+        ShowWindow(g_overlay_hwnd, SW_HIDE);
+        return;
+    }
+
+    int screen_w = GetSystemMetrics(SM_CXSCREEN);
+    int screen_h = GetSystemMetrics(SM_CYSCREEN);
+    if (screen_w <= 0 || screen_h <= 0) return;
+
+    BITMAPINFO bi{};
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = screen_w;
+    bi.bmiHeader.biHeight = -screen_h;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+
+    void* pvBits = nullptr;
+    HDC screenDC = GetDC(nullptr);
+    if (!screenDC) return;
+    HBITMAP hBitmap = CreateDIBSection(screenDC, &bi, DIB_RGB_COLORS, &pvBits, nullptr, 0);
+    if (!hBitmap || !pvBits) {
+        ReleaseDC(nullptr, screenDC);
+        return;
+    }
+
+    {
+        Gdiplus::Bitmap bmp(screen_w, screen_h, PixelFormat32bppPARGB);
+        Gdiplus::Graphics graphics(&bmp);
+        graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+        graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
+
+        int boxY = screen_h - static_cast<int>(screen_h * 0.16f);
+        int boxH = static_cast<int>(screen_h * 0.11f);
+        int marginX = static_cast<int>(screen_w * 0.10f);
+        int boxW = screen_w - (marginX * 2);
+
+        // Translucent dark pill banner for contrast
+        Gdiplus::SolidBrush bgBrush(Gdiplus::Color(140, 10, 10, 15));
+        graphics.FillRectangle(&bgBrush, marginX - 30, boxY - 10, boxW + 60, boxH + 20);
+
+        // Adaptive font sizing based on resolution (approx 32px at 1080p, 43px at 1440p, 65px at 4K)
+        float fontSize = screen_h * 0.032f;
+        if (fontSize < 18.0f) fontSize = 18.0f;
+        Gdiplus::Font font(L"Segoe UI", fontSize, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+
+        Gdiplus::StringFormat format;
+        format.SetAlignment(Gdiplus::StringAlignmentCenter);
+        format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+
+        Gdiplus::RectF layoutRect(static_cast<float>(marginX), static_cast<float>(boxY),
+                                  static_cast<float>(boxW), static_cast<float>(boxH));
+
+        // High contrast dropshadow
+        Gdiplus::SolidBrush shadowBrush(Gdiplus::Color(220, 0, 0, 0));
+        Gdiplus::RectF shadowRect = layoutRect;
+        shadowRect.X += 2.0f;
+        shadowRect.Y += 2.0f;
+        graphics.DrawString(text.c_str(), -1, &font, shadowRect, &format, &shadowBrush);
+
+        // Warm gold Soul Reaver typography
+        Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 255, 235, 140));
+        graphics.DrawString(text.c_str(), -1, &font, layoutRect, &format, &textBrush);
+
+        Gdiplus::BitmapData bmpData{};
+        Gdiplus::Rect lockRect(0, 0, screen_w, screen_h);
+        if (bmp.LockBits(&lockRect, Gdiplus::ImageLockModeRead, PixelFormat32bppPARGB, &bmpData) == Gdiplus::Ok) {
+            memcpy(pvBits, bmpData.Scan0, static_cast<size_t>(screen_w) * screen_h * 4);
+            bmp.UnlockBits(&bmpData);
+        }
+    }
+
+    HDC memDC = CreateCompatibleDC(screenDC);
+    HGDIOBJ oldBmp = SelectObject(memDC, hBitmap);
+
+    POINT ptSrc = { 0, 0 };
+    SIZE sizeDst = { screen_w, screen_h };
+    POINT ptDst = { 0, 0 };
+    BLENDFUNCTION blend{};
+    blend.BlendOp = AC_SRC_OVER;
+    blend.BlendFlags = 0;
+    blend.SourceConstantAlpha = 255;
+    blend.AlphaFormat = AC_SRC_ALPHA;
+
+    UpdateLayeredWindow(g_overlay_hwnd, screenDC, &ptDst, &sizeDst, memDC, &ptSrc, 0, &blend, ULW_ALPHA);
+    ShowWindow(g_overlay_hwnd, SW_SHOWNOACTIVATE);
+
+    SelectObject(memDC, oldBmp);
+    DeleteDC(memDC);
+    DeleteObject(hBitmap);
+    ReleaseDC(nullptr, screenDC);
+}
+
+static bool load_captions() {
+    load_unicode_captions();
+
+    std::vector<unsigned char> bytes;
+    if (!read_file(directory() + L".soul-reaver-ptbr\\subtitles.tsv", bytes, 256 * 1024)) return has_unicode_captions;
     std::string data(bytes.begin(), bytes.end());
     size_t begin = 0;
     std::array<bool, 479> seen{};
@@ -111,7 +409,7 @@ static bool load_captions() {
                 milliseconds = milliseconds * 10 + line[i] - '0';
             }
             if (milliseconds < 100 || milliseconds > 60000) return false;
-            durations[id] = milliseconds;
+            if (!durations[id]) durations[id] = milliseconds;
             text_start = timing + 1;
         }
         for (size_t i = text_start; i < line.size(); ++i)
@@ -121,7 +419,7 @@ static bool load_captions() {
         seen[id] = true;
         begin = end + 1;
     }
-    return std::any_of(seen.begin(), seen.end(), [](bool value) { return value; });
+    return has_unicode_captions || std::any_of(seen.begin(), seen.end(), [](bool value) { return value; });
 }
 
 static std::vector<std::string> wrap(const std::string& text) {
@@ -132,7 +430,6 @@ static std::vector<std::string> wrap(const std::string& text) {
         size_t end = text.find(' ', position);
         if (end == std::string::npos) end = text.size();
         std::string word = text.substr(position, end - position);
-        // Refuse malformed unbroken words before passing text to the game's formatter.
         if (word.size() > 60) return {"Legenda indisponivel: texto invalido."};
         std::string next = line.empty() ? word : line + " " + word;
         if (!line.empty() && string_width(next.c_str()) > 470) {
@@ -154,28 +451,68 @@ static void __cdecl subtitle_flush() {
     const ULONGLONG now = GetTickCount64();
     const ULONGLONG delta = now - previous_tick;
     previous_tick = now;
-    // These are the actual stream states, after the queued voice starts playing.
-    const bool active = state >= 2 && state <= 4 && id >= 0 && id < 479 && !captions[id].empty();
+
+    HWND fg = GetForegroundWindow();
+    ensure_overlay_window(fg);
+
+    const bool has_u_cap = has_unicode_captions && id >= 0 && id < 479 && !unicode_captions[id].text.empty();
+    const bool active = state >= 2 && state <= 4 && id >= 0 && id < 479 && (has_u_cap || !captions[id].empty());
+
     if (active) {
         if (id != previous) {
             previous = id;
             elapsed = 0;
-            lines = wrap(captions[id]);
+            if (!has_u_cap) lines = wrap(captions[id]);
             char message[80];
-            sprintf_s(message, "voice=%d state=%d subtitle-start", id, state);
+            sprintf_s(message, "voice=%d state=%d subtitle-start%s", id, state, has_u_cap ? " (vector-unicode)" : "");
             log_line(message);
         }
         const int channel = *reinterpret_cast<int*>(base + 0x857fdc);
-        if (!is_playing(channel)) { original_flush(); return; }
+        if (!is_playing(channel)) {
+            if (g_overlay_available) render_vector_subtitle(L"");
+            original_flush();
+            return;
+        }
         elapsed += std::min<ULONGLONG>(delta, 250);
         const DWORD bytes = *reinterpret_cast<DWORD*>(base + 0xfd814 + id * 8);
-        const size_t pages = (lines.size() + 1) / 2;
         const ULONGLONG duration = durations[id] ? durations[id] : std::max<ULONGLONG>(1, bytes * 1000ULL / 44100);
-        if (elapsed > duration + 150) { original_flush(); return; }
+        if (elapsed > duration + 150) {
+            if (g_overlay_available) render_vector_subtitle(L"");
+            original_flush();
+            return;
+        }
+
+        if (g_overlay_available) {
+            std::wstring current_text;
+            if (has_u_cap) {
+                const auto& cap = unicode_captions[id];
+                for (const auto& pg : cap.pages) {
+                    if (elapsed >= pg.start_ms && elapsed <= pg.end_ms) {
+                        current_text = pg.text;
+                        break;
+                    }
+                }
+                if (current_text.empty() && !cap.pages.empty()) {
+                    current_text = cap.pages.back().text;
+                }
+            } else if (!captions[id].empty()) {
+                int wlen = MultiByteToWideChar(CP_ACP, 0, captions[id].c_str(), -1, nullptr, 0);
+                if (wlen > 0) {
+                    current_text.resize(wlen - 1);
+                    MultiByteToWideChar(CP_ACP, 0, captions[id].c_str(), -1, &current_text[0], wlen);
+                }
+            }
+
+            render_vector_subtitle(current_text);
+            original_flush();
+            return;
+        }
+
+        // Fallback to in-engine print_text only if vector overlay failed to create
+        const size_t pages = (lines.size() + 1) / 2;
         std::vector<size_t> weights(pages, 0);
         size_t total = 0;
         for (size_t i = 0; i < lines.size(); ++i) { weights[i / 2] += lines[i].size(); total += lines[i].size(); }
-        // Give dense pages more reading time, with a minimum for short trailing text.
         const size_t minimum = std::max<size_t>(1, total / pages / 3);
         total = 0;
         for (auto& weight : weights) { weight = std::max(weight, minimum); total += weight; }
@@ -186,16 +523,13 @@ static void __cdecl subtitle_flush() {
         unsigned char& color = *reinterpret_cast<unsigned char*>(base + 0x8640bc);
         const int old_x = x, old_y = y;
         const unsigned char old_color = color;
-        // Keep the existing game's buffer well below its 2048-character capacity.
         if (*reinterpret_cast<int*>(base + 0x8640a8) < 1700) {
-            // High-contrast dropshadow for readability against bright backgrounds
             color = 3;
             for (size_t i = page * 2; i < std::min(lines.size(), page * 2 + 2); ++i) {
                 x = std::max(10, (512 - string_width(lines[i].c_str())) / 2) + 1;
                 y = 199 + static_cast<int>(i % 2) * 13;
                 print_text("%s", lines[i].c_str());
             }
-            // Main text in gold
             color = 0;
             for (size_t i = page * 2; i < std::min(lines.size(), page * 2 + 2); ++i) {
                 x = std::max(10, (512 - string_width(lines[i].c_str())) / 2);
@@ -204,7 +538,12 @@ static void __cdecl subtitle_flush() {
             }
         }
         x = old_x; y = old_y; color = old_color;
-    } else previous = -1;
+    } else {
+        if (g_overlay_available && previous != -1) {
+            render_vector_subtitle(L"");
+        }
+        previous = -1;
+    }
     original_flush();
 }
 
