@@ -1157,6 +1157,13 @@ static bool install_engine_optimizations() {
         patch_memory_bytes(base + 0x7da7d, exp_audio_total, pat_audio_total, sizeof(exp_audio_total))) {
         log_line("Audio streaming ring buffer expanded to 64 KB (zero room transition stutter)");
     }
+
+    // Restore Spectral Realm Vertex Mesh Morphing (GTE Per-Vertex Sine Distortion)
+    const unsigned char exp_morph_jump[] = { 0x74, 0x31 };
+    const unsigned char pat_morph_jump[] = { 0x90, 0x90 };
+    if (patch_memory_bytes(base + 0x5a18a, exp_morph_jump, pat_morph_jump, sizeof(exp_morph_jump))) {
+        log_line("Spectral Realm vertex mesh morphing restored (continuous geometry warp)");
+    }
     return true;
 }
 
