@@ -47,8 +47,8 @@ std::vector<Key> Desired(const State& s, const JOYCAPSW* caps) {
     add(PovUp(s.pov),kUp); add(PovRight(s.pov),kRight); add(PovDown(s.pov),kDown); add(PovLeft(s.pov),kLeft);
     add(Pressed(s,1),kA); add(Pressed(s,2),kX); add(Pressed(s,3),kD); add(Pressed(s,4),kF);
     add(Pressed(s,5),kS); add(Pressed(s,6),kC);
-    // The game's camera orbit controls are opposite the desired look direction.
-    add(camera < -kDeadzone,kNum0); add(camera > kDeadzone,kCtrl);
+    // The game's camera orbit controls are mapped so right stick looks in the natural direction.
+    add(camera < -kDeadzone,kCtrl); add(camera > kDeadzone,kNum0);
     add(Pressed(s,10),kEsc); add(Pressed(s,9),kEnter);
     std::sort(keys.begin(),keys.end()); keys.erase(std::unique(keys.begin(),keys.end()),keys.end()); return keys;
 }
@@ -90,8 +90,8 @@ bool SelfTest() {
     s.buttons=0x3ff; auto allButtons=Desired(s,&caps); if(allButtons.size()!=8 || !Has(allButtons,kX) || !Has(allButtons,kA) || !Has(allButtons,kD) || !Has(allButtons,kF) || !Has(allButtons,kS) || !Has(allButtons,kC) || Has(allButtons,kCtrl) || Has(allButtons,kNum0) || !Has(allButtons,kEsc) || !Has(allButtons,kEnter)) return false;
     s.buttons=1u<<1; auto cross=Desired(s,&caps); if(cross.size()!=1 || !Has(cross,kX) || Has(cross,kEnter)) return false;
     s.buttons=(1u<<6)|(1u<<7); auto triggers=Desired(s,&caps); if(!triggers.empty()) return false;
-    s.buttons=0; s.z=15000; auto cameraLeft=Desired(s,&caps); if(cameraLeft.size()!=1 || !Has(cameraLeft,kNum0) || Has(cameraLeft,kCtrl)) return false;
-    s.z=50000; auto cameraRight=Desired(s,&caps); if(cameraRight.size()!=1 || !Has(cameraRight,kCtrl) || Has(cameraRight,kNum0)) return false;
+    s.buttons=0; s.z=15000; auto cameraLeft=Desired(s,&caps); if(cameraLeft.size()!=1 || !Has(cameraLeft,kCtrl) || Has(cameraLeft,kNum0)) return false;
+    s.z=50000; auto cameraRight=Desired(s,&caps); if(cameraRight.size()!=1 || !Has(cameraRight,kNum0) || Has(cameraRight,kCtrl)) return false;
     s.z=33768; if(!Desired(s,&caps).empty()) return false;
     s.z=32768; if(!Desired(s,&caps).empty()) return false;
     s.buttons=0; s.x=32768+1000; auto dead=Desired(s,&caps); if(!dead.empty()) return false;
