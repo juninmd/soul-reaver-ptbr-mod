@@ -1076,6 +1076,17 @@ static bool install_engine_optimizations() {
         *fog_near = 20000;
         VirtualProtect(fog_far, sizeof(uint32_t) * 2, old_p, &old_p);
     }
+
+    // Expand audio streaming ring buffer from 16 KB to 64 KB to eliminate stutters/clicks during room streaming
+    const unsigned char exp_audio_block[] = { 0x68, 0x00, 0x10, 0x00, 0x00 };
+    const unsigned char pat_audio_block[] = { 0x68, 0x00, 0x40, 0x00, 0x00 };
+    const unsigned char exp_audio_total[] = { 0x68, 0x00, 0x40, 0x00, 0x00 };
+    const unsigned char pat_audio_total[] = { 0x68, 0x00, 0x00, 0x01, 0x00 };
+
+    if (patch_memory_bytes(base + 0x7da4a, exp_audio_block, pat_audio_block, sizeof(exp_audio_block)) &&
+        patch_memory_bytes(base + 0x7da7d, exp_audio_total, pat_audio_total, sizeof(exp_audio_total))) {
+        log_line("Audio streaming ring buffer expanded to 64 KB (zero room transition stutter)");
+    }
     return true;
 }
 
