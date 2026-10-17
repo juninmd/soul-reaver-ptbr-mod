@@ -13,6 +13,8 @@ namespace Gdiplus {
 }
 #include <gdiplus.h>
 #include <dinput.h>
+#include <setupapi.h>
+#include <hidsdi.h>
 #include <mmsystem.h>
 #include <bcrypt.h>
 #include <array>
@@ -251,7 +253,7 @@ static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARA
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-static void ensure_overlay_window(HWND game_hwnd) {
+static void ensure_overlay_window(HWND /*game_hwnd*/) {
     if (g_overlay_inited) return;
     g_overlay_inited = true;
 
@@ -273,7 +275,7 @@ static void ensure_overlay_window(HWND game_hwnd) {
         L"",
         WS_POPUP,
         0, 0, screen_w, screen_h,
-        game_hwnd, nullptr, self_module, nullptr
+        nullptr, nullptr, self_module, nullptr
     );
 
     if (g_overlay_hwnd) {
@@ -809,6 +811,24 @@ static void __cdecl subtitle_flush() {
     original_flush();
 }
 
+static void __cdecl hook_print_text(const char* fmt, ...) {
+    if (!fmt) return;
+    char buffer[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsprintf_s(buffer, fmt, args);
+    va_end(args);
+
+    if (buffer[0] != '\0') {
+        int wlen = MultiByteToWideChar(CP_ACP, 0, buffer, -1, nullptr, 0);
+        if (wlen > 1) {
+            std::wstring wstr(wlen - 1, L'\0');
+            MultiByteToWideChar(CP_ACP, 0, buffer, -1, &wstr[0], wlen);
+            render_vector_subtitle(wstr);
+        }
+    }
+}
+
 static bool install_hook() {
     base = reinterpret_cast<DWORD>(GetModuleHandleW(nullptr));
     auto target = reinterpret_cast<unsigned char*>(base + 0x9e580);
@@ -833,6 +853,17 @@ static bool install_hook() {
     VirtualProtect(target, 6, old, &ignored);
     FlushInstructionCache(GetCurrentProcess(), target, 6);
     FlushInstructionCache(GetCurrentProcess(), trampoline, 11);
+
+    DWORD old_pt;
+    auto* pt_target = reinterpret_cast<unsigned char*>(base + 0x9e2e0);
+    if (VirtualProtect(pt_target, 5, PAGE_EXECUTE_READWRITE, &old_pt)) {
+        pt_target[0] = 0xe9;
+        *reinterpret_cast<DWORD*>(pt_target + 1) = reinterpret_cast<DWORD>(&hook_print_text) - (base + 0x9e2e0 + 5);
+        VirtualProtect(pt_target, 5, old_pt, &old_pt);
+        FlushInstructionCache(GetCurrentProcess(), pt_target, 5);
+        log_line("1999 bitmap font silenced; vector TrueType HD subtitle pipeline hooked");
+    }
+
     return true;
 }
 
@@ -867,123 +898,12 @@ static bool install_60fps_patches() {
     return ok;
 }
 
-struct TextureSlot {
-    DWORD last_access;
-    int page_id;
-    void* surface;
-    DWORD flags;
-};
-
-static TextureSlot* __cdecl hook_upload_texture(int page_index, const void* src_buffer) {
-    if (page_index < 0) return nullptr;
-    auto slots = reinterpret_cast<TextureSlot*>(base + 0x840390);
-    int num_slots = *reinterpret_cast<int*>(base + 0x8400dc);
-    if (num_slots <= 0 || num_slots > 128) num_slots = 64;
-    DWORD current_time = *reinterpret_cast<DWORD*>(base + 0x8409cc);
-
-    int best_slot = 0;
-    DWORD oldest_time = 0xFFFFFFFF;
-    for (int i = 0; i < num_slots; ++i) {
-        if (slots[i].page_id == -1) {
-            best_slot = i;
-            break;
-        }
-        if (slots[i].last_access < oldest_time) {
-            oldest_time = slots[i].last_access;
-            best_slot = i;
-        }
-    }
-
-    TextureSlot* slot = &slots[best_slot];
-    if (!slot->surface) return slot;
-
-    void** vtbl = *reinterpret_cast<void***>(slot->surface);
-    using LockFn = HRESULT(STDMETHODCALLTYPE*)(void*, LPRECT, void*, DWORD, HANDLE);
-    using UnlockFn = HRESULT(STDMETHODCALLTYPE*)(void*, LPRECT);
-    auto lock_fn = reinterpret_cast<LockFn>(vtbl[25]);
-    auto unlock_fn = reinterpret_cast<UnlockFn>(vtbl[32]);
-
-    unsigned char desc[124] = {0};
-    *reinterpret_cast<DWORD*>(desc) = sizeof(desc);
-    HRESULT hr = lock_fn(slot->surface, nullptr, desc, 0x00000821 /* DDLOCK_WAIT | DDLOCK_WRITEONLY */, nullptr);
-    if (FAILED(hr)) return slot;
-
-    void* lpSurface = *reinterpret_cast<void**>(desc + 0x24);
-    DWORD pitch = *reinterpret_cast<DWORD*>(desc + 0x10);
-    DWORD width = *reinterpret_cast<DWORD*>(desc + 0x0c);
-    DWORD height = *reinterpret_cast<DWORD*>(desc + 0x08);
-
-    bool loaded = false;
-    if (width == 1024 && height == 1024 && lpSurface) {
-        wchar_t path[MAX_PATH];
-        swprintf_s(path, L"%shd-textures\\page-%04d.raw", directory().c_str(), page_index);
-        HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (file != INVALID_HANDLE_VALUE) {
-            LARGE_INTEGER size;
-            if (GetFileSizeEx(file, &size) && size.QuadPart == 1024 * 1024 * 2) {
-                if (pitch == 2048) {
-                    DWORD count = 0;
-                    if (ReadFile(file, lpSurface, 1024 * 1024 * 2, &count, nullptr) && count == 1024 * 1024 * 2) {
-                        loaded = true;
-                    }
-                } else {
-                    static std::vector<unsigned char> temp(1024 * 1024 * 2);
-                    DWORD count = 0;
-                    if (ReadFile(file, temp.data(), static_cast<DWORD>(temp.size()), &count, nullptr) && count == temp.size()) {
-                        for (DWORD y = 0; y < 1024; ++y) {
-                            memcpy(reinterpret_cast<unsigned char*>(lpSurface) + y * pitch, temp.data() + y * 2048, 2048);
-                        }
-                        loaded = true;
-                    }
-                }
-            }
-            CloseHandle(file);
-        }
-    }
-
-    if (!loaded && lpSurface && src_buffer) {
-        const auto* src16 = reinterpret_cast<const uint16_t*>(src_buffer);
-        if (width == 1024 && height == 1024) {
-            for (DWORD y = 0; y < 1024; ++y) {
-                DWORD sy = y >> 2;
-                auto* dst_row = reinterpret_cast<uint16_t*>(reinterpret_cast<unsigned char*>(lpSurface) + y * pitch);
-                for (DWORD x = 0; x < 1024; ++x) {
-                    DWORD sx = x >> 2;
-                    dst_row[x] = src16[sy * 256 + sx];
-                }
-            }
-        } else {
-            for (DWORD y = 0; y < 256; ++y) {
-                memcpy(reinterpret_cast<unsigned char*>(lpSurface) + y * pitch, src16 + y * 256, 512);
-            }
-        }
-    }
-
-    unlock_fn(slot->surface, nullptr);
-    slot->last_access = current_time;
-    slot->page_id = page_index;
-    return slot;
-}
-
 static bool install_hd_textures_hook() {
     if (base != 0x400000) return false;
     const unsigned char exp_surf[] = {0xb8, 0x00, 0x01, 0x00, 0x00};
     const unsigned char pat_surf[] = {0xb8, 0x00, 0x04, 0x00, 0x00};
     patch_memory_bytes(base + 0x72c21, exp_surf, pat_surf, sizeof(exp_surf));
     patch_memory_bytes(base + 0x72d31, exp_surf, pat_surf, sizeof(exp_surf));
-
-    auto target = reinterpret_cast<unsigned char*>(base + 0x72e70);
-    const unsigned char expected[] = {0x81, 0xec, 0x88, 0x00, 0x00, 0x00};
-    if (memcmp(target, expected, sizeof(expected)) != 0) return false;
-
-    DWORD old;
-    if (!VirtualProtect(target, 6, PAGE_EXECUTE_READWRITE, &old)) return false;
-    target[0] = 0xe9;
-    *reinterpret_cast<DWORD*>(target + 1) = reinterpret_cast<DWORD>(&hook_upload_texture) - reinterpret_cast<DWORD>(target + 5);
-    target[5] = 0x90;
-    DWORD ignored;
-    VirtualProtect(target, 6, old, &ignored);
-    FlushInstructionCache(GetCurrentProcess(), target, 6);
     return true;
 }
 
@@ -1002,6 +922,9 @@ static ULONGLONG g_next_dualsense_search = 0;
 static bool g_prev_start_pressed = false;
 static void (__cdecl* original_UpdateInput)() = nullptr;
 
+static HANDLE g_hDualSenseHID = INVALID_HANDLE_VALUE;
+static unsigned char g_led_r = 0, g_led_g = 110, g_led_b = 255;
+
 struct HapticState {
     ULONGLONG expire_tick = 0;
     WORD left_motor = 0;
@@ -1015,37 +938,106 @@ static void trigger_rumble(WORD left, WORD right, DWORD duration_ms) {
     g_haptic.expire_tick = GetTickCount64() + duration_ms;
 }
 
-static void update_haptics() {
-    static HMODULE s_xinput = nullptr;
-    using SetStateFn = DWORD(WINAPI*)(DWORD, void*);
-    static SetStateFn s_set_state = nullptr;
-    static bool s_tried_load = false;
-    if (!s_tried_load) {
-        s_tried_load = true;
-        s_xinput = LoadLibraryA("xinput1_4.dll");
-        if (!s_xinput) s_xinput = LoadLibraryA("xinput1_3.dll");
-        if (!s_xinput) s_xinput = LoadLibraryA("xinput9_1_0.dll");
-        if (s_xinput) {
-            s_set_state = reinterpret_cast<SetStateFn>(GetProcAddress(s_xinput, "XInputSetState"));
-            if (s_set_state) log_line("XInput haptic feedback driver initialized");
+static HANDLE open_dualsense_hid() {
+    if (g_hDualSenseHID != INVALID_HANDLE_VALUE) return g_hDualSenseHID;
+
+    GUID hidGuid;
+    HidD_GetHidGuid(&hidGuid);
+    HDEVINFO hDevInfo = SetupDiGetClassDevsW(&hidGuid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    if (hDevInfo == INVALID_HANDLE_VALUE) return INVALID_HANDLE_VALUE;
+
+    SP_DEVICE_INTERFACE_DATA ifData{};
+    ifData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+
+    for (DWORD i = 0; SetupDiEnumDeviceInterfaces(hDevInfo, nullptr, &hidGuid, i, &ifData); ++i) {
+        DWORD reqSize = 0;
+        SetupDiGetDeviceInterfaceDetailW(hDevInfo, &ifData, nullptr, 0, &reqSize, nullptr);
+        if (reqSize == 0) continue;
+
+        std::vector<BYTE> buf(reqSize);
+        auto* detail = reinterpret_cast<PSP_DEVICE_INTERFACE_DETAIL_DATA_W>(buf.data());
+        detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
+
+        if (SetupDiGetDeviceInterfaceDetailW(hDevInfo, &ifData, detail, reqSize, nullptr, nullptr)) {
+            HANDLE h = CreateFileW(detail->DevicePath, GENERIC_READ | GENERIC_WRITE,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+            if (h != INVALID_HANDLE_VALUE) {
+                HIDD_ATTRIBUTES attr{};
+                attr.Size = sizeof(attr);
+                if (HidD_GetAttributes(h, &attr)) {
+                    if (attr.VendorID == 0x054C && (attr.ProductID == 0x0CE6 || attr.ProductID == 0x0DF2)) {
+                        SetupDiDestroyDeviceInfoList(hDevInfo);
+                        g_hDualSenseHID = h;
+                        log_line("DualSense native HID output handle connected (lightbar + rumble ready)");
+                        return g_hDualSenseHID;
+                    }
+                }
+                CloseHandle(h);
+            }
         }
     }
+    SetupDiDestroyDeviceInfoList(hDevInfo);
+    return INVALID_HANDLE_VALUE;
+}
 
-    if (!s_set_state) return;
+static void send_dualsense_output(unsigned char r, unsigned char g, unsigned char b, unsigned char rumble_l, unsigned char rumble_r) {
+    HANDLE h = open_dualsense_hid();
+    if (h == INVALID_HANDLE_VALUE) return;
 
-    struct { WORD wLeftMotorSpeed; WORD wRightMotorSpeed; } vib{};
-    const ULONGLONG now = GetTickCount64();
-    if (now < g_haptic.expire_tick) {
-        vib.wLeftMotorSpeed = g_haptic.left_motor;
-        vib.wRightMotorSpeed = g_haptic.right_motor;
+    unsigned char report[48] = {0};
+    report[0] = 0x02; // DualSense USB output report ID
+    report[1] = 0xFF; // Valid flags 1: enable rumble motors, lightbar
+    report[2] = 0xF7; // Valid flags 2
+    report[3] = rumble_r; // High frequency rumble motor
+    report[4] = rumble_l; // Low frequency heavy rumble motor
+    report[9] = r;        // Lightbar Red
+    report[10] = g;       // Lightbar Green
+    report[11] = b;       // Lightbar Blue
+
+    DWORD written = 0;
+    if (!WriteFile(h, report, sizeof(report), &written, nullptr)) {
+        CloseHandle(g_hDualSenseHID);
+        g_hDualSenseHID = INVALID_HANDLE_VALUE;
     }
-    s_set_state(0, &vib);
+}
+
+static void update_haptics() {
+    const ULONGLONG now = GetTickCount64();
+    unsigned char rumble_l = 0;
+    unsigned char rumble_r = 0;
+    if (now < g_haptic.expire_tick) {
+        rumble_l = static_cast<unsigned char>(g_haptic.left_motor >> 8);
+        rumble_r = static_cast<unsigned char>(g_haptic.right_motor >> 8);
+    }
+    send_dualsense_output(g_led_r, g_led_g, g_led_b, rumble_l, rumble_r);
 }
 
 static BOOL CALLBACK enum_dualsense_callback(LPCDIDEVICEINSTANCEA lpddi, LPVOID pvRef) {
     auto pGuid = reinterpret_cast<GUID*>(pvRef);
     *pGuid = lpddi->guidInstance;
     return DIENUM_STOP;
+}
+
+static void safe_adjust_camera_pitch(short tilt_delta, bool reset) {
+    if (base != 0x400000) return;
+    __try {
+        auto* cam = reinterpret_cast<unsigned char*>(base + 0x864560);
+        if (cam) {
+            short& tilt = *reinterpret_cast<short*>(cam + 0xFE);  // Camera tilt angle
+            short& rot_x = *reinterpret_cast<short*>(cam + 0xB0); // Camera rotation X (pitch)
+            if (reset) {
+                tilt = 0;
+                rot_x = 0;
+            } else if (tilt_delta != 0) {
+                int new_tilt = tilt + tilt_delta;
+                if (new_tilt < -600) new_tilt = -600;
+                if (new_tilt > 600) new_tilt = 600;
+                tilt = static_cast<short>(new_tilt);
+                rot_x = tilt;
+            }
+        }
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {}
 }
 
 static void poll_dualsense_and_inject() {
@@ -1119,10 +1111,13 @@ static void poll_dualsense_and_inject() {
     const bool move_left  = stick_left  || dpad_left;
     const bool move_right = stick_right || dpad_right;
 
+    LONG v_axis = 0;
+    if (abs(js.lRz - kCenter) > kDeadzone) v_axis = js.lRz - kCenter;
+    else if (abs(js.lRy - kCenter) > kDeadzone) v_axis = js.lRy - kCenter;
+    else if (abs(js.lRx - kCenter) > kDeadzone) v_axis = js.lRx - kCenter;
+
     const bool cam_left  = (js.lZ < kCenter - kDeadzone);
     const bool cam_right = (js.lZ > kCenter + kDeadzone);
-    const bool cam_up    = (js.lRz < kCenter - kDeadzone);
-    const bool cam_down  = (js.lRz > kCenter + kDeadzone);
 
     auto btn = [&](int idx) -> bool {
         return (idx >= 0 && idx < 32) && ((js.rgbButtons[idx] & 0x80) != 0);
@@ -1155,8 +1150,8 @@ static void poll_dualsense_and_inject() {
     }
     s_prev_touchpad = btn_touchpad;
 
-    bool final_move_up   = move_up   || (btn_r1 && cam_up);
-    bool final_move_down = move_down || (btn_r1 && cam_down);
+    bool final_move_up   = move_up;
+    bool final_move_down = move_down;
     bool act_move_left = move_left;
     bool act_move_right = move_right;
     bool act_sq = btn_square;
@@ -1181,17 +1176,14 @@ static void poll_dualsense_and_inject() {
     double stick_dist = sqrt(static_cast<double>(stick_dx * stick_dx + stick_dy * stick_dy));
 
     if (base == 0x400000 && !g_map_visible) {
-        auto* cam = reinterpret_cast<unsigned char*>(base + 0x864560);
-        if (cam) {
-            short& pitch = *reinterpret_cast<short*>(cam + 0x136);
-            if (btn_r3) {
-                pitch = 0;
-            } else if (!btn_r1) {
-                if (cam_up && pitch > -500) pitch -= 12;
-                if (cam_down && pitch < 500) pitch += 12;
-            }
+        if (btn_r3) {
+            safe_adjust_camera_pitch(0, true);
+        } else if (v_axis != 0) {
+            short step = static_cast<short>(-(v_axis / 2500));
+            safe_adjust_camera_pitch(step, false);
         }
 
+        auto* cam = reinterpret_cast<unsigned char*>(base + 0x864560);
         auto* player = *reinterpret_cast<unsigned char**>(base + 0x866d4c);
         if (player && stick_dist > kDeadzone && !btn_r1) {
             double angle_rad = atan2(static_cast<double>(stick_dx), -static_cast<double>(stick_dy));
@@ -1396,27 +1388,12 @@ static void __cdecl hook_UpdateInput() {
             b = 255;
         }
 
+        g_led_r = r; g_led_g = g; g_led_b = b;
+
         static unsigned char prev_r = 0, prev_g = 0, prev_b = 0;
         if (r != prev_r || g != prev_g || b != prev_b) {
             prev_r = r; prev_g = g; prev_b = b;
-            for (int i = 0; i < 4; ++i) {
-                wchar_t dev_path[128];
-                swprintf_s(dev_path, L"\\\\.\\HID#VID_054C&PID_0CE6#%d", i);
-                HANDLE h = CreateFileW(dev_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
-                if (h != INVALID_HANDLE_VALUE) {
-                    unsigned char report[48] = {0};
-                    report[0] = 0x02; // DualSense USB output report ID
-                    report[1] = 0xff; // Valid flags 1
-                    report[2] = 0xf7; // Valid flags 2
-                    report[9] = r;    // Red
-                    report[10] = g;   // Green
-                    report[11] = b;   // Blue
-                    DWORD written = 0;
-                    WriteFile(h, report, sizeof(report), &written, nullptr);
-                    CloseHandle(h);
-                    break;
-                }
-            }
+            send_dualsense_output(r, g, b, 0, 0);
 
             wchar_t path[MAX_PATH];
             swprintf_s(path, L"%s.soul-reaver-ptbr\\controller-state.json", directory().c_str());
