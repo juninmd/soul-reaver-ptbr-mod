@@ -605,6 +605,27 @@ static void render_vector_subtitle(const std::wstring& text) {
             graphics.DrawString(text.c_str(), -1, &font, layoutRect, &format, &textBrush);
         }
 
+        {
+            const std::wstring flag = directory() + L".soul-reaver-ptbr\\capture.flag";
+            if (GetFileAttributesW(flag.c_str()) != INVALID_FILE_ATTRIBUTES) {
+                UINT n = 0, sz = 0;
+                Gdiplus::GetImageEncodersSize(&n, &sz);
+                std::vector<unsigned char> buf(sz);
+                auto* enc = reinterpret_cast<Gdiplus::ImageCodecInfo*>(buf.data());
+                if (sz && Gdiplus::GetImageEncoders(n, sz, enc) == Gdiplus::Ok) {
+                    for (UINT i = 0; i < n; ++i) {
+                        if (wcscmp(enc[i].MimeType, L"image/png") == 0) {
+                            const std::wstring out = directory() + L".soul-reaver-ptbr\\overlay-capture.png";
+                            bmp.Save(out.c_str(), &enc[i].Clsid, nullptr);
+                            break;
+                        }
+                    }
+                }
+                DeleteFileW(flag.c_str());
+                log_line("Overlay capture saved");
+            }
+        }
+
         Gdiplus::BitmapData bmpData{};
         Gdiplus::Rect lockRect(0, 0, screen_w, screen_h);
         if (bmp.LockBits(&lockRect, Gdiplus::ImageLockModeRead, PixelFormat32bppPARGB, &bmpData) == Gdiplus::Ok) {
@@ -764,36 +785,6 @@ static void __cdecl subtitle_flush() {
             return;
         }
 
-        // Fallback to in-engine print_text only if vector overlay failed to create
-        const size_t pages = (lines.size() + 1) / 2;
-        std::vector<size_t> weights(pages, 0);
-        size_t total = 0;
-        for (size_t i = 0; i < lines.size(); ++i) { weights[i / 2] += lines[i].size(); total += lines[i].size(); }
-        const size_t minimum = std::max<size_t>(1, total / pages / 3);
-        total = 0;
-        for (auto& weight : weights) { weight = std::max(weight, minimum); total += weight; }
-        size_t page = 0, accumulated = weights[0];
-        while (page + 1 < pages && elapsed * total >= duration * accumulated) accumulated += weights[++page];
-        int& x = *reinterpret_cast<int*>(base + 0x8640a0);
-        int& y = *reinterpret_cast<int*>(base + 0x8640a4);
-        unsigned char& color = *reinterpret_cast<unsigned char*>(base + 0x8640bc);
-        const int old_x = x, old_y = y;
-        const unsigned char old_color = color;
-        if (*reinterpret_cast<int*>(base + 0x8640a8) < 1700) {
-            color = 3;
-            for (size_t i = page * 2; i < std::min(lines.size(), page * 2 + 2); ++i) {
-                x = std::max(10, (512 - string_width(lines[i].c_str())) / 2) + 1;
-                y = 199 + static_cast<int>(i % 2) * 13;
-                print_text("%s", lines[i].c_str());
-            }
-            color = 0;
-            for (size_t i = page * 2; i < std::min(lines.size(), page * 2 + 2); ++i) {
-                x = std::max(10, (512 - string_width(lines[i].c_str())) / 2);
-                y = 198 + static_cast<int>(i % 2) * 13;
-                print_text("%s", lines[i].c_str());
-            }
-        }
-        x = old_x; y = old_y; color = old_color;
     } else {
         if (g_overlay_available) {
             static ULONGLONG s_last_map_draw = 0;
@@ -809,24 +800,6 @@ static void __cdecl subtitle_flush() {
         previous = -1;
     }
     original_flush();
-}
-
-static void __cdecl hook_print_text(const char* fmt, ...) {
-    if (!fmt) return;
-    char buffer[1024];
-    va_list args;
-    va_start(args, fmt);
-    vsprintf_s(buffer, fmt, args);
-    va_end(args);
-
-    if (buffer[0] != '\0') {
-        int wlen = MultiByteToWideChar(CP_ACP, 0, buffer, -1, nullptr, 0);
-        if (wlen > 1) {
-            std::wstring wstr(wlen - 1, L'\0');
-            MultiByteToWideChar(CP_ACP, 0, buffer, -1, &wstr[0], wlen);
-            render_vector_subtitle(wstr);
-        }
-    }
 }
 
 static bool install_hook() {
@@ -854,16 +827,7 @@ static bool install_hook() {
     FlushInstructionCache(GetCurrentProcess(), target, 6);
     FlushInstructionCache(GetCurrentProcess(), trampoline, 11);
 
-    DWORD old_pt;
-    auto* pt_target = reinterpret_cast<unsigned char*>(base + 0x9e2e0);
-    if (VirtualProtect(pt_target, 5, PAGE_EXECUTE_READWRITE, &old_pt)) {
-        pt_target[0] = 0xe9;
-        *reinterpret_cast<DWORD*>(pt_target + 1) = reinterpret_cast<DWORD>(&hook_print_text) - (base + 0x9e2e0 + 5);
-        VirtualProtect(pt_target, 5, old_pt, &old_pt);
-        FlushInstructionCache(GetCurrentProcess(), pt_target, 5);
-        log_line("1999 bitmap font silenced; vector TrueType HD subtitle pipeline hooked");
-    }
-
+    log_line("Vector TrueType HD subtitle pipeline hooked; native engine menu font preserved");
     return true;
 }
 
@@ -1139,12 +1103,10 @@ static void poll_dualsense_and_inject() {
     static bool s_prev_touchpad = false;
     if (btn_touchpad && !s_prev_touchpad) {
         g_map_visible = !g_map_visible;
-        trigger_rumble(0x1000, 0x3000, 50);
         log_line(g_map_visible ? "Nosgoth Exploration Map opened" : "Nosgoth Exploration Map closed");
         render_vector_subtitle(L"");
     } else if (g_map_visible && (btn_circle || ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0))) {
         g_map_visible = false;
-        trigger_rumble(0x0800, 0x1500, 30);
         render_vector_subtitle(L"");
         log_line("Nosgoth Exploration Map closed");
     }
@@ -1307,10 +1269,7 @@ static void poll_dualsense_and_inject() {
     }
 
     static bool prev_sq = false, prev_cr = false, prev_tr = false, prev_r3 = false;
-    if (btn_square && !prev_sq) trigger_rumble(0x6000, 0x9000, 90);    // Attack (claws/weapon slash)
-    if (btn_cross && !prev_cr)  trigger_rumble(0x2000, 0x4000, 50);    // Jump / Glide leap
-    if (btn_triangle && !prev_tr) trigger_rumble(0x9000, 0xb000, 160); // Shift Realm / Cast Glyph
-    if (btn_r3 && !prev_r3) trigger_rumble(0x0000, 0xa000, 45);        // Camera snap click
+    if (btn_cross && !prev_cr)  trigger_rumble(0x4000, 0x8000, 90); // Jump
     prev_sq = btn_square;
     prev_cr = btn_cross;
     prev_tr = btn_triangle;
