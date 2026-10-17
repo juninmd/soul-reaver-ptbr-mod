@@ -282,6 +282,41 @@ static void ensure_overlay_window(HWND game_hwnd) {
     }
 }
 
+struct PlayerState {
+    int realm = 0;
+    int health = 100;
+    int unit_id = 2;
+    int abilities = 0;
+};
+
+static bool safe_read_player_state(PlayerState& out) {
+    out.realm = 0;
+    out.health = 100;
+    out.unit_id = 2;
+    out.abilities = 0;
+
+    if (base != 0x400000) return false;
+
+    __try {
+        auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0x866d4c);
+        if (!player_ptr) return false;
+
+        out.unit_id = *reinterpret_cast<int*>(player_ptr + 0x18);
+
+        auto extra = *reinterpret_cast<unsigned char**>(player_ptr + 0x14);
+        if (extra) {
+            out.realm = *reinterpret_cast<int*>(extra + 0x00) & 1;
+            int balls = *reinterpret_cast<int*>(extra + 0x04);
+            if (balls >= 1 && balls <= 5) out.health = balls * 20;
+            out.abilities = *reinterpret_cast<int*>(extra + 0x08);
+        }
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 struct RealmHealthState {
     int realm = 0;
     int health = 100;
@@ -289,16 +324,10 @@ struct RealmHealthState {
 
 static RealmHealthState get_player_state() {
     RealmHealthState state;
-    if (base != 0x400000) return state;
-
-    auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0xd2a40);
-    if (player_ptr) {
-        auto extra = *reinterpret_cast<unsigned char**>(player_ptr + 0x14);
-        if (extra) {
-            state.realm = *reinterpret_cast<int*>(extra + 0x00) & 1;
-            int balls = *reinterpret_cast<int*>(extra + 0x04);
-            if (balls >= 1 && balls <= 5) state.health = balls * 20;
-        }
+    PlayerState ps;
+    if (safe_read_player_state(ps)) {
+        state.realm = ps.realm;
+        state.health = ps.health;
     }
     return state;
 }
@@ -336,13 +365,11 @@ static ObjectiveInfo get_current_objective() {
     obj.title = L"Jornada de Vingan\u00e7a de Raziel";
     obj.description = L"Explore os ermos de Nosgoth e destrua o imp\u00e9rio parasita de Kain.";
 
-    if (base != 0x400000) return obj;
-    auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0xd2a40);
-    if (!player_ptr) return obj;
+    PlayerState ps;
+    if (!safe_read_player_state(ps)) return obj;
 
-    auto extra = *reinterpret_cast<unsigned char**>(player_ptr + 0x14);
-    int unit_id = *reinterpret_cast<int*>(player_ptr + 0x18);
-    int abilities = extra ? *reinterpret_cast<int*>(extra + 0x08) : 0;
+    int unit_id = ps.unit_id;
+    int abilities = ps.abilities;
 
     if ((abilities & 0x01) == 0) {
         obj.region = L"Necr\u00f3pole dos Mortos";
@@ -462,11 +489,9 @@ static void render_map_screen(Gdiplus::Graphics& graphics, int screen_w, int scr
     Gdiplus::Font nodeFont(L"Segoe UI", titleSize * 0.60f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 
     auto pl_st = get_player_state();
-    int current_unit = 2;
-    if (base == 0x400000) {
-        auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0xd2a40);
-        if (player_ptr) current_unit = *reinterpret_cast<int*>(player_ptr + 0x18);
-    }
+    PlayerState ps;
+    safe_read_player_state(ps);
+    int current_unit = ps.unit_id;
 
     Gdiplus::PointF player_pos(canvasX + 0.50f * canvasW, canvasY + 0.60f * canvasH);
 
@@ -1337,17 +1362,10 @@ static void __cdecl hook_UpdateInput() {
     if (now - s_last_lightbar_update >= 100) {
         s_last_lightbar_update = now;
 
-        int realm = 0;
-        int health = 100;
-        auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0xd2a40);
-        if (player_ptr) {
-            auto extra = *reinterpret_cast<unsigned char**>(player_ptr + 0x14);
-            if (extra) {
-                realm = *reinterpret_cast<int*>(extra + 0x00) & 1;
-                int balls = *reinterpret_cast<int*>(extra + 0x04);
-                if (balls >= 1 && balls <= 5) health = balls * 20;
-            }
-        }
+        PlayerState ps;
+        safe_read_player_state(ps);
+        int realm = ps.realm;
+        int health = ps.health;
 
         // Detect soul absorption / health recovery
         if (s_prev_health != -1 && health > s_prev_health) {
