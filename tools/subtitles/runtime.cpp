@@ -1060,8 +1060,10 @@ static void __cdecl hook_UpdateInput() {
     }
     poll_dualsense_and_inject();
 
-    // DualSense Dynamic Lightbar: Realm (Material Blue vs Spectral Cyan) & Health (Pulse Red)
+    // DualSense Dynamic Lightbar & Haptics: Soul Absorption (Emerald Green), Realm & Health
     static ULONGLONG s_last_lightbar_update = 0;
+    static ULONGLONG s_soul_absorb_expire = 0;
+    static int s_prev_health = -1;
     const ULONGLONG now = GetTickCount64();
     if (now - s_last_lightbar_update >= 100) {
         s_last_lightbar_update = now;
@@ -1078,8 +1080,21 @@ static void __cdecl hook_UpdateInput() {
             }
         }
 
+        // Detect soul absorption / health recovery
+        if (s_prev_health != -1 && health > s_prev_health) {
+            s_soul_absorb_expire = now + 900; // 900 ms Soul Absorption active window
+            trigger_rumble(0x6000, 0xd000, 400); // Crescendo haptic pulse
+            log_line("Soul absorbed: DualSense crescendo haptic pulse and Soul Green LED triggered");
+        }
+        s_prev_health = health;
+
         unsigned char r = 0, g = 110, b = 255;
-        if (health < 25) {
+        if (now < s_soul_absorb_expire) {
+            // Soul Absorption: Brilliant Emerald Green (#00FF66)
+            r = 0;
+            g = 255;
+            b = 102;
+        } else if (health < 25) {
             bool pulse = ((now / 250) % 2) == 0;
             r = pulse ? 255 : 80;
             g = pulse ? 15 : 0;
