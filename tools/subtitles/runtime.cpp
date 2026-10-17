@@ -2,7 +2,11 @@
 // Build only for x86. Install into an isolated game copy; never replace another proxy.
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#define INITGUID
+#define DIRECTINPUT_VERSION 0x0500
 #include <windows.h>
+#include <dinput.h>
+#include <mmsystem.h>
 #include <bcrypt.h>
 #include <algorithm>
 #include <array>
@@ -14,7 +18,7 @@
 static_assert(sizeof(void*) == 4, "The classic game requires an x86 proxy");
 static HMODULE self_module;
 static INIT_ONCE once = INIT_ONCE_STATIC_INIT;
-using InputCreate = HRESULT(WINAPI*)(HINSTANCE, DWORD, void**, void*);
+using InputCreate = HRESULT(WINAPI*)(HINSTANCE, DWORD, LPDIRECTINPUTA*, LPUNKNOWN);
 static InputCreate real_create;
 static std::array<std::string, 479> captions;
 static std::array<ULONGLONG, 479> durations{};
@@ -34,7 +38,7 @@ static std::wstring directory() {
 
 static void log_line(const char* text) {
     const auto name = directory() + L".soul-reaver-ptbr\\subtitles-runtime.log";
-    HANDLE file = CreateFileW(name.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ,
+    HANDLE file = CreateFileW(name.c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE,
                               nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE) return;
     DWORD written;
@@ -374,14 +378,210 @@ static bool install_hd_textures_hook() {
     return true;
 }
 
-// DualSense: the game's DirectInput joystick path ignores the POV hat and treats analog axes as
-// digital without a dead zone. Translate the hat into lX/lY on the 80-byte DIJOYSTATE the game asks for.
-using CreateDeviceFn = HRESULT(STDMETHODCALLTYPE*)(void*, REFGUID, void**, void*);
-using GetStateFn = HRESULT(STDMETHODCALLTYPE*)(void*, DWORD, void*);
-struct PatchedSlot { void** table; void* original; };
-static PatchedSlot patched_states[4];
-static CreateDeviceFn real_create_device;
-static bool joystick_hook_enabled;
+// DualSense Native Integration:
+// Soul Reaver PC queries the keyboard message queue and PSX pad packet via DirectInput.
+// We hook UpdateInput at base + 0x7a407 (which calls 0x478170).
+// Each frame, right after the game's internal UpdateInput() finishes, we poll the DualSense controller
+// directly via DirectInput with DISCL_BACKGROUND, and inject inputs directly into:
+// 1) pad1 (base + 0x861040, pointed to by base + 0x8651c8) - native PSX pad struct
+// 2) kbd buffer (base + 0x866900) - DirectInput 256-key scancode array
+// 3) pause flag (base + 0x8542f4) - instant pause menu trigger
+
+static LPDIRECTINPUTA g_pDirectInput = nullptr;
+static LPDIRECTINPUTDEVICE2A g_dualsense_device = nullptr;
+static ULONGLONG g_next_dualsense_search = 0;
+static bool g_prev_start_pressed = false;
+static void (__cdecl* original_UpdateInput)() = nullptr;
+
+static BOOL CALLBACK enum_dualsense_callback(LPCDIDEVICEINSTANCEA lpddi, LPVOID pvRef) {
+    auto pGuid = reinterpret_cast<GUID*>(pvRef);
+    *pGuid = lpddi->guidInstance;
+    return DIENUM_STOP;
+}
+
+static void poll_dualsense_and_inject() {
+    const ULONGLONG now = GetTickCount64();
+
+    if (!g_dualsense_device && now >= g_next_dualsense_search) {
+        g_next_dualsense_search = now + 1000;
+        if (!g_pDirectInput && real_create) {
+            real_create(GetModuleHandleW(nullptr), 0x0500, &g_pDirectInput, nullptr);
+        }
+        if (g_pDirectInput) {
+            GUID target_guid{};
+            g_pDirectInput->EnumDevices(4 /* DIDEVTYPE_JOYSTICK */, enum_dualsense_callback, &target_guid, DIEDFL_ATTACHEDONLY);
+
+            if (target_guid != GUID{}) {
+                LPDIRECTINPUTDEVICEA dev1 = nullptr;
+                HRESULT hr = g_pDirectInput->CreateDevice(target_guid, &dev1, nullptr);
+                if (SUCCEEDED(hr) && dev1) {
+                    dev1->SetDataFormat(&c_dfDIJoystick);
+                    dev1->SetCooperativeLevel(GetDesktopWindow(), DISCL_NONEXCLUSIVE | DISCL_BACKGROUND);
+                    hr = dev1->QueryInterface(IID_IDirectInputDevice2A, reinterpret_cast<void**>(&g_dualsense_device));
+                    dev1->Release();
+                    if (SUCCEEDED(hr) && g_dualsense_device) {
+                        g_dualsense_device->Acquire();
+                        log_line("DualSense native controller connected and acquired");
+                    }
+                }
+            }
+        }
+    }
+
+    if (!g_dualsense_device) return;
+
+    HWND fg = GetForegroundWindow();
+    DWORD fg_pid = 0;
+    if (fg) GetWindowThreadProcessId(fg, &fg_pid);
+    if (fg_pid != 0 && fg_pid != GetCurrentProcessId()) return;
+
+    g_dualsense_device->Poll();
+    DIJOYSTATE js{};
+    HRESULT hr = g_dualsense_device->GetDeviceState(sizeof(DIJOYSTATE), &js);
+    if (hr == DIERR_NOTACQUIRED || hr == DIERR_INPUTLOST) {
+        g_dualsense_device->Acquire();
+        hr = g_dualsense_device->GetDeviceState(sizeof(DIJOYSTATE), &js);
+    }
+    if (FAILED(hr)) {
+        g_dualsense_device->Release();
+        g_dualsense_device = nullptr;
+        log_line("DualSense controller disconnected");
+        return;
+    }
+
+    constexpr LONG kCenter = 32768;
+    constexpr LONG kDeadzone = 8000;
+    const bool stick_left  = (js.lX < kCenter - kDeadzone);
+    const bool stick_right = (js.lX > kCenter + kDeadzone);
+    const bool stick_up    = (js.lY < kCenter - kDeadzone);
+    const bool stick_down  = (js.lY > kCenter + kDeadzone);
+
+    bool dpad_up = false, dpad_down = false, dpad_left = false, dpad_right = false;
+    const DWORD pov = js.rgdwPOV[0];
+    if (LOWORD(pov) != 0xFFFF) {
+        dpad_up    = (pov >= 31500 || pov <= 4500);
+        dpad_right = (pov >= 4500  && pov <= 13500);
+        dpad_down  = (pov >= 13500 && pov <= 22500);
+        dpad_left  = (pov >= 22500 && pov <= 31500);
+    }
+
+    const bool move_up    = stick_up    || dpad_up;
+    const bool move_down  = stick_down  || dpad_down;
+    const bool move_left  = stick_left  || dpad_left;
+    const bool move_right = stick_right || dpad_right;
+
+    const bool cam_left  = (js.lZ < kCenter - kDeadzone) || (js.lRz < kCenter - kDeadzone);
+    const bool cam_right = (js.lZ > kCenter + kDeadzone) || (js.lRz > kCenter + kDeadzone);
+
+    auto btn = [&](int idx) -> bool {
+        return (idx >= 0 && idx < 32) && ((js.rgbButtons[idx] & 0x80) != 0);
+    };
+
+    const bool btn_square   = btn(0);
+    const bool btn_cross    = btn(1);
+    const bool btn_circle   = btn(2);
+    const bool btn_triangle = btn(3);
+    const bool btn_l1       = btn(4);
+    const bool btn_r1       = btn(5);
+    const bool btn_l2       = btn(6) || cam_right; // Stick right -> camera looks right (in-game L2 orbit)
+    const bool btn_r2       = btn(7) || cam_left;  // Stick left -> camera looks left (in-game R2 orbit)
+    const bool btn_select   = btn(8);
+    const bool btn_start    = btn(9) || btn(12) || btn(13);
+
+    auto pad1_ptr = *reinterpret_cast<unsigned char**>(base + 0x8651c8);
+    if (!pad1_ptr) pad1_ptr = reinterpret_cast<unsigned char*>(base + 0x861040);
+    if (pad1_ptr) {
+        pad1_ptr[0] = 0;
+        pad1_ptr[1] = 0x41;
+        uint16_t& buttons = *reinterpret_cast<uint16_t*>(pad1_ptr + 2);
+
+        if (btn_select)   buttons &= ~0x0001;
+        if (btn_start)    buttons &= ~0x0008;
+        if (move_up)      buttons &= ~0x0010;
+        if (move_right)   buttons &= ~0x0020;
+        if (move_down)    buttons &= ~0x0040;
+        if (move_left)    buttons &= ~0x0080;
+        if (btn_l2)       buttons &= ~0x0100;
+        if (btn_r2)       buttons &= ~0x0200;
+        if (btn_l1)       buttons &= ~0x0400;
+        if (btn_r1)       buttons &= ~0x0800;
+        if (btn_triangle) buttons &= ~0x1000;
+        if (btn_circle)   buttons &= ~0x2000;
+        if (btn_cross)    buttons &= ~0x4000;
+        if (btn_square)   buttons &= ~0x8000;
+    }
+
+    auto pad0_ptr = reinterpret_cast<unsigned char*>(base + 0x860f60);
+    if (pad0_ptr) {
+        uint16_t& buttons0 = *reinterpret_cast<uint16_t*>(pad0_ptr + 2);
+        if (btn_select)   buttons0 &= ~0x0001;
+        if (btn_start)    buttons0 &= ~0x0008;
+        if (move_up)      buttons0 &= ~0x0010;
+        if (move_right)   buttons0 &= ~0x0020;
+        if (move_down)    buttons0 &= ~0x0040;
+        if (move_left)    buttons0 &= ~0x0080;
+        if (btn_l2)       buttons0 &= ~0x0100;
+        if (btn_r2)       buttons0 &= ~0x0200;
+        if (btn_l1)       buttons0 &= ~0x0400;
+        if (btn_r1)       buttons0 &= ~0x0800;
+        if (btn_triangle) buttons0 &= ~0x1000;
+        if (btn_circle)   buttons0 &= ~0x2000;
+        if (btn_cross)    buttons0 &= ~0x4000;
+        if (btn_square)   buttons0 &= ~0x8000;
+    }
+
+    auto kbd = reinterpret_cast<unsigned char*>(base + 0x866900);
+    if (kbd) {
+        if (move_up)      kbd[0xc8] |= 0x80;
+        if (move_down)    kbd[0xd0] |= 0x80;
+        if (move_left)    kbd[0xcb] |= 0x80;
+        if (move_right)   kbd[0xcd] |= 0x80;
+        if (btn_square)   kbd[0x1e] |= 0x80;
+        if (btn_cross)    kbd[0x2d] |= 0x80;
+        if (btn_circle)   kbd[0x20] |= 0x80;
+        if (btn_triangle) kbd[0x21] |= 0x80;
+        if (btn_l1)       kbd[0x1f] |= 0x80;
+        if (btn_r1)       kbd[0x2e] |= 0x80;
+        if (btn_l2)       kbd[0x52] |= 0x80;
+        if (btn_r2)       kbd[0x9d] |= 0x80;
+        if (btn_start)    kbd[0x01] |= 0x80;
+        if (btn_select)   kbd[0x1c] |= 0x80;
+    }
+
+    HWND target_wnd = fg ? fg : GetActiveWindow();
+    if (btn_start && !g_prev_start_pressed) {
+        *reinterpret_cast<DWORD*>(base + 0x8542f4) = 1;
+        if (target_wnd) PostMessageA(target_wnd, WM_KEYDOWN, VK_ESCAPE, 0x00010001);
+    } else if (!btn_start && g_prev_start_pressed) {
+        if (target_wnd) PostMessageA(target_wnd, WM_KEYUP, VK_ESCAPE, 0xc0010001);
+    }
+    g_prev_start_pressed = btn_start;
+
+    if (btn_cross || btn_select) {
+        if (target_wnd) PostMessageA(target_wnd, WM_KEYDOWN, VK_SPACE, 0x00390001);
+    }
+}
+
+static void __cdecl hook_UpdateInput() {
+    if (original_UpdateInput) {
+        original_UpdateInput();
+    }
+    poll_dualsense_and_inject();
+}
+
+static bool install_dualsense_hook() {
+    if (base != 0x400000) return false;
+    const unsigned char exp_call[] = {0xe8, 0x64, 0xdd, 0xff, 0xff};
+    auto call_site = reinterpret_cast<unsigned char*>(base + 0x7a407);
+    if (memcmp(call_site, exp_call, sizeof(exp_call)) != 0) return false;
+
+    original_UpdateInput = reinterpret_cast<void(__cdecl*)()>(base + 0x78170);
+
+    unsigned char pat_call[5] = {0xe8};
+    *reinterpret_cast<DWORD*>(pat_call + 1) = reinterpret_cast<DWORD>(&hook_UpdateInput) - (base + 0x7a407 + 5);
+
+    return patch_memory_bytes(base + 0x7a407, exp_call, pat_call, sizeof(exp_call));
+}
 
 static BOOL CALLBACK initialize(PINIT_ONCE, PVOID, PVOID*) {
     wchar_t system[32768];
@@ -395,75 +595,16 @@ static BOOL CALLBACK initialize(PINIT_ONCE, PVOID, PVOID*) {
     if (load_captions()) {
         log_line(install_hook() ? "Experimental subtitle hook active" : "Hook guard failed; subtitles disabled");
     }
-    joystick_hook_enabled = true;
     log_line(install_60fps_patches() ? "60 FPS patches active" : "60 FPS patch guard failed");
     log_line(install_hd_textures_hook() ? "HD texture 1024x1024 hook active" : "HD texture hook guard failed");
+    log_line(install_dualsense_hook() ? "DualSense native input hook active" : "DualSense hook guard failed");
     return TRUE;
 }
 
-static bool patch_slot(void** table, size_t index, void* replacement, void** original) {
-    DWORD old;
-    if (!VirtualProtect(&table[index], sizeof(void*), PAGE_READWRITE, &old)) return false;
-    *original = table[index];
-    table[index] = replacement;
-    DWORD ignored;
-    VirtualProtect(&table[index], sizeof(void*), old, &ignored);
-    return true;
-}
-
-static HRESULT STDMETHODCALLTYPE joystick_state(void* device, DWORD size, void* data) {
-    void** table = *reinterpret_cast<void***>(device);
-    GetStateFn original = nullptr;
-    for (auto& slot : patched_states) if (slot.table == table) original = reinterpret_cast<GetStateFn>(slot.original);
-    if (!original) return E_FAIL;
-    const HRESULT status = original(device, size, data);
-    if (SUCCEEDED(status) && size >= 80 && data) {
-        auto* state = static_cast<LONG*>(data);
-        auto* pov = reinterpret_cast<DWORD*>(static_cast<unsigned char*>(data) + 0x20);
-        // Apply deadzone: suppress analog stick drift near centre (+/- 300)
-        for (int axis = 0; axis < 2; ++axis) {
-            if (state[axis] > -300 && state[axis] < 300) state[axis] = 0;
-        }
-        // Map DualSense D-Pad (POV hat) to lX / lY
-        if (LOWORD(pov[0]) != 0xFFFF) {
-            const DWORD angle = pov[0] % 36000;
-            if (angle >= 4500 && angle <= 13500) state[0] = 1000;
-            else if (angle >= 22500 && angle <= 31500) state[0] = -1000;
-
-            if (angle >= 31500 || angle <= 4500) state[1] = -1000;
-            else if (angle >= 13500 && angle <= 22500) state[1] = 1000;
-        }
-    }
-    return status;
-}
-
-static HRESULT STDMETHODCALLTYPE create_device_hook(void* input, REFGUID guid, void** device, void* outer) {
-    const HRESULT status = real_create_device(input, guid, device, outer);
-    if (SUCCEEDED(status) && device && *device) {
-        void** table = *reinterpret_cast<void***>(*device);
-        for (auto& slot : patched_states) {
-            if (slot.table == table) return status;
-            if (!slot.table) {
-                void* original = nullptr;
-                if (patch_slot(table, 9, reinterpret_cast<void*>(&joystick_state), &original)) slot = {table, original};
-                return status;
-            }
-        }
-    }
-    return status;
-}
-
-extern "C" HRESULT WINAPI DirectInputCreateA(HINSTANCE instance, DWORD version, void** result, void* outer) {
+extern "C" HRESULT WINAPI DirectInputCreateA(HINSTANCE instance, DWORD version, LPDIRECTINPUTA* result, LPUNKNOWN outer) {
     InitOnceExecuteOnce(&once, initialize, nullptr, nullptr);
     if (!real_create) return E_FAIL;
-    const HRESULT status = real_create(instance, version, result, outer);
-    if (SUCCEEDED(status) && result && *result && joystick_hook_enabled && !real_create_device) {
-        void** table = *reinterpret_cast<void***>(*result);
-        void* original = nullptr;
-        if (patch_slot(table, 3, reinterpret_cast<void*>(&create_device_hook), &original))
-            real_create_device = reinterpret_cast<CreateDeviceFn>(original);
-    }
-    return status;
+    return real_create(instance, version, result, outer);
 }
 
 BOOL WINAPI DllMain(HINSTANCE module, DWORD reason, LPVOID) {
@@ -471,6 +612,16 @@ BOOL WINAPI DllMain(HINSTANCE module, DWORD reason, LPVOID) {
         self_module = module;
         DisableThreadLibraryCalls(module);
         InitOnceExecuteOnce(&once, initialize, nullptr, nullptr);
+    } else if (reason == DLL_PROCESS_DETACH) {
+        if (g_dualsense_device) {
+            g_dualsense_device->Unacquire();
+            g_dualsense_device->Release();
+            g_dualsense_device = nullptr;
+        }
+        if (g_pDirectInput) {
+            g_pDirectInput->Release();
+            g_pDirectInput = nullptr;
+        }
     }
     return TRUE;
 }
