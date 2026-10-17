@@ -282,9 +282,236 @@ static void ensure_overlay_window(HWND game_hwnd) {
     }
 }
 
+struct RealmHealthState {
+    int realm = 0;
+    int health = 100;
+};
+
+static RealmHealthState get_player_state() {
+    RealmHealthState state;
+    if (base != 0x400000) return state;
+
+    auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0xd2a40);
+    if (player_ptr) {
+        auto extra = *reinterpret_cast<unsigned char**>(player_ptr + 0x14);
+        if (extra) {
+            state.realm = *reinterpret_cast<int*>(extra + 0x00) & 1;
+            int balls = *reinterpret_cast<int*>(extra + 0x04);
+            if (balls >= 1 && balls <= 5) state.health = balls * 20;
+        }
+    }
+    return state;
+}
+
+static bool g_map_visible = false;
+
+struct MapSector {
+    const wchar_t* name;
+    float norm_x;
+    float norm_y;
+    int unit_id;
+};
+
+static const MapSector g_sectors[] = {
+    { L"Submundo & Lago dos Mortos", 0.50f, 0.85f, 1 },
+    { L"Santu\u00e1rio dos Cl\u00e3s", 0.50f, 0.60f, 2 },
+    { L"Necr\u00f3pole de Melchiah", 0.25f, 0.72f, 3 },
+    { L"Catedral Silenciada de Zephon", 0.78f, 0.48f, 4 },
+    { L"Pilares de Nosgoth", 0.28f, 0.42f, 5 },
+    { L"Tumba dos Sarafan", 0.50f, 0.38f, 6 },
+    { L"Abadia Submersa de Rahab", 0.50f, 0.22f, 7 },
+    { L"Fortaleza da Montanha de Dumah", 0.75f, 0.25f, 8 },
+    { L"C\u00e2mara do Tempo (Chronoplast)", 0.32f, 0.15f, 9 }
+};
+
+struct ObjectiveInfo {
+    const wchar_t* region;
+    const wchar_t* title;
+    const wchar_t* description;
+};
+
+static ObjectiveInfo get_current_objective() {
+    ObjectiveInfo obj;
+    obj.region = L"Nosgoth";
+    obj.title = L"Jornada de Vingan\u00e7a de Raziel";
+    obj.description = L"Explore os ermos de Nosgoth e destrua o imp\u00e9rio parasita de Kain.";
+
+    if (base != 0x400000) return obj;
+    auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0xd2a40);
+    if (!player_ptr) return obj;
+
+    auto extra = *reinterpret_cast<unsigned char**>(player_ptr + 0x14);
+    int unit_id = *reinterpret_cast<int*>(player_ptr + 0x18);
+    int abilities = extra ? *reinterpret_cast<int*>(extra + 0x08) : 0;
+
+    if ((abilities & 0x01) == 0) {
+        obj.region = L"Necr\u00f3pole dos Mortos";
+        obj.title = L"Cace Melchiah";
+        obj.description = L"Adentre as catacumbas da Necr\u00f3pole e destrua Melchiah para obter o dom de atravessar grades.";
+    } else if ((abilities & 0x02) == 0) {
+        obj.region = L"Catedral Silenciada";
+        obj.title = L"Elimine Zephon";
+        obj.description = L"Atravesse as grades de ferro da Catedral e elimine Zephon para obter o dom de escalar paredes.";
+    } else if ((abilities & 0x04) == 0) {
+        obj.region = L"Pilares de Nosgoth";
+        obj.title = L"Confronte Kain nos Pilares";
+        obj.description = L"Escale at\u00e9 o cume dos Pilares de Nosgoth, enfrente Kain e desperte a l\u00e2mina espiritual Soul Reaver.";
+    } else if ((abilities & 0x08) == 0) {
+        obj.region = L"Abadia Submersa & Tumba Sarafan";
+        obj.title = L"Derrote Rahab";
+        obj.description = L"Mergulhe na abadia profanada de Rahab ao norte e absorva sua imunidade \u00e0 \u00e1gua para nadar.";
+    } else if ((abilities & 0x10) == 0) {
+        obj.region = L"Fortaleza da Montanha";
+        obj.title = L"Destrua Dumah";
+        obj.description = L"Nade atrav\u00e9s dos canais gelados at\u00e9 a cidadela de Dumah, empale-o na fornalha e consuma sua alma.";
+    } else {
+        obj.region = L"C\u00e2mara do Tempo (Chronoplast)";
+        obj.title = L"Batalha Final com Kain";
+        obj.description = L"Atravesse as montanhas geladas, adentre o dispositivo temporal de Moebius e alcance Kain no tear do destino.";
+    }
+
+    for (const auto& sec : g_sectors) {
+        if (sec.unit_id == unit_id) {
+            obj.region = sec.name;
+            break;
+        }
+    }
+    return obj;
+}
+
+static void render_map_screen(Gdiplus::Graphics& graphics, int screen_w, int screen_h) {
+    int mapW = static_cast<int>(screen_w * 0.82f);
+    int mapH = static_cast<int>(screen_h * 0.82f);
+    int mapX = (screen_w - mapW) / 2;
+    int mapY = (screen_h - mapH) / 2;
+
+    Gdiplus::SolidBrush shadowBrush(Gdiplus::Color(220, 5, 5, 8));
+    graphics.FillRectangle(&shadowBrush, mapX - 15, mapY - 15, mapW + 30, mapH + 30);
+
+    Gdiplus::SolidBrush bgBrush(Gdiplus::Color(245, 18, 22, 28));
+    graphics.FillRectangle(&bgBrush, mapX, mapY, mapW, mapH);
+
+    Gdiplus::Pen goldPen(Gdiplus::Color(255, 212, 160, 70), 3.0f);
+    graphics.DrawRectangle(&goldPen, mapX, mapY, mapW, mapH);
+    Gdiplus::Pen innerPen(Gdiplus::Color(160, 150, 110, 45), 1.0f);
+    graphics.DrawRectangle(&innerPen, mapX + 6, mapY + 6, mapW - 12, mapH - 12);
+
+    auto obj = get_current_objective();
+    float titleSize = screen_h * 0.028f;
+    if (titleSize < 16.0f) titleSize = 16.0f;
+    Gdiplus::Font titleFont(L"Georgia", titleSize, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+    Gdiplus::Font subFont(L"Segoe UI", titleSize * 0.72f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+    Gdiplus::Font bodyFont(L"Segoe UI", titleSize * 0.65f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+
+    Gdiplus::StringFormat centerFmt;
+    centerFmt.SetAlignment(Gdiplus::StringAlignmentCenter);
+    centerFmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+
+    Gdiplus::SolidBrush titleBrush(Gdiplus::Color(255, 255, 225, 140));
+    Gdiplus::RectF titleRect(static_cast<float>(mapX), static_cast<float>(mapY + 12),
+                            static_cast<float>(mapW), titleSize * 1.5f);
+    graphics.DrawString(L"MAPA DE EXPLORA\u00c7\u00c3O DE NOSGOTH", -1, &titleFont, titleRect, &centerFmt, &titleBrush);
+
+    int objY = mapY + static_cast<int>(titleSize * 1.6f) + 10;
+    int objH = static_cast<int>(screen_h * 0.075f);
+    int objW = mapW - 60;
+    int objX = mapX + 30;
+
+    Gdiplus::SolidBrush objBg(Gdiplus::Color(220, 28, 34, 44));
+    graphics.FillRectangle(&objBg, objX, objY, objW, objH);
+    Gdiplus::Pen objBorder(Gdiplus::Color(200, 180, 140, 60), 1.5f);
+    graphics.DrawRectangle(&objBorder, objX, objY, objW, objH);
+
+    Gdiplus::SolidBrush goldBrush(Gdiplus::Color(255, 255, 190, 50));
+    std::wstring objTitleText = std::wstring(L"[!] OBJETIVO: ") + obj.title + L" \u2014 " + obj.region;
+    Gdiplus::RectF objTitleRect(static_cast<float>(objX + 15), static_cast<float>(objY + 6),
+                               static_cast<float>(objW - 30), titleSize * 0.85f);
+    Gdiplus::StringFormat leftFmt;
+    leftFmt.SetAlignment(Gdiplus::StringAlignmentNear);
+    graphics.DrawString(objTitleText.c_str(), -1, &subFont, objTitleRect, &leftFmt, &goldBrush);
+
+    Gdiplus::SolidBrush descBrush(Gdiplus::Color(255, 220, 225, 230));
+    Gdiplus::RectF objDescRect(static_cast<float>(objX + 15), static_cast<float>(objY + 6 + titleSize * 0.85f),
+                              static_cast<float>(objW - 30), titleSize * 0.95f);
+    graphics.DrawString(obj.description, -1, &bodyFont, objDescRect, &leftFmt, &descBrush);
+
+    int canvasX = mapX + 40;
+    int canvasY = objY + objH + 15;
+    int canvasW = mapW - 80;
+    int canvasH = mapH - (canvasY - mapY) - 50;
+
+    Gdiplus::Pen pathPen(Gdiplus::Color(150, 100, 85, 60), 2.5f);
+    pathPen.SetDashStyle(Gdiplus::DashStyleDash);
+
+    auto get_xy = [&](const MapSector& s) -> Gdiplus::PointF {
+        return Gdiplus::PointF(canvasX + s.norm_x * canvasW, canvasY + s.norm_y * canvasH);
+    };
+
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[0]), get_xy(g_sectors[1]));
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[1]), get_xy(g_sectors[2]));
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[1]), get_xy(g_sectors[3]));
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[1]), get_xy(g_sectors[4]));
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[4]), get_xy(g_sectors[5]));
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[5]), get_xy(g_sectors[6]));
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[6]), get_xy(g_sectors[7]));
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[7]), get_xy(g_sectors[8]));
+    graphics.DrawLine(&pathPen, get_xy(g_sectors[4]), get_xy(g_sectors[8]));
+
+    Gdiplus::SolidBrush nodeBrush(Gdiplus::Color(240, 35, 45, 55));
+    Gdiplus::Pen nodePen(Gdiplus::Color(220, 180, 140, 70), 2.0f);
+    Gdiplus::Font nodeFont(L"Segoe UI", titleSize * 0.60f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+
+    auto pl_st = get_player_state();
+    int current_unit = 2;
+    if (base == 0x400000) {
+        auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0xd2a40);
+        if (player_ptr) current_unit = *reinterpret_cast<int*>(player_ptr + 0x18);
+    }
+
+    Gdiplus::PointF player_pos(canvasX + 0.50f * canvasW, canvasY + 0.60f * canvasH);
+
+    for (size_t i = 0; i < ARRAYSIZE(g_sectors); ++i) {
+        Gdiplus::PointF pt = get_xy(g_sectors[i]);
+        float r = 10.0f;
+        graphics.FillEllipse(&nodeBrush, pt.X - r, pt.Y - r, r * 2, r * 2);
+        graphics.DrawEllipse(&nodePen, pt.X - r, pt.Y - r, r * 2, r * 2);
+
+        Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 230, 215, 175));
+        Gdiplus::RectF labelRect(pt.X - 140, pt.Y + 12, 280, 24);
+        graphics.DrawString(g_sectors[i].name, -1, &nodeFont, labelRect, &centerFmt, &textBrush);
+
+        if (g_sectors[i].unit_id == current_unit || (current_unit <= 1 && i == 0)) {
+            player_pos = pt;
+        }
+    }
+
+    const ULONGLONG now = GetTickCount64();
+    float pulse = 1.0f + 0.25f * static_cast<float>(sin(now / 180.0));
+    float pinR = 14.0f * pulse;
+    Gdiplus::SolidBrush pinGlow(Gdiplus::Color(100, 255, 215, 0));
+    graphics.FillEllipse(&pinGlow, player_pos.X - pinR * 1.5f, player_pos.Y - pinR * 1.5f, pinR * 3.0f, pinR * 3.0f);
+
+    Gdiplus::SolidBrush pinBrush(Gdiplus::Color(255, 255, 220, 40));
+    graphics.FillEllipse(&pinBrush, player_pos.X - pinR, player_pos.Y - pinR, pinR * 2, pinR * 2);
+    Gdiplus::Pen pinBorder(Gdiplus::Color(255, 255, 255, 255), 2.0f);
+    graphics.DrawEllipse(&pinBorder, player_pos.X - pinR, player_pos.Y - pinR, pinR * 2, pinR * 2);
+
+    Gdiplus::Font tagFont(L"Segoe UI", titleSize * 0.68f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+    Gdiplus::SolidBrush tagBrush(Gdiplus::Color(255, 255, 245, 120));
+    Gdiplus::RectF tagRect(player_pos.X - 80, player_pos.Y - pinR - 22, 160, 20);
+    graphics.DrawString(L"\u2605 RAZIEL", -1, &tagFont, tagRect, &centerFmt, &tagBrush);
+
+    std::wstring footer = L"Plano Atual: " + std::wstring(pl_st.realm == 1 ? L"ESPECTRAL" : L"MATERIAL") +
+                          L"  \u2022  [Touchpad / M] Fechar Mapa  \u2022  Navega\u00e7\u00e3o de Nosgoth";
+    Gdiplus::SolidBrush footerBrush(Gdiplus::Color(200, 180, 180, 190));
+    Gdiplus::RectF footerRect(static_cast<float>(mapX), static_cast<float>(mapY + mapH - 32),
+                             static_cast<float>(mapW), 24.0f);
+    graphics.DrawString(footer.c_str(), -1, &subFont, footerRect, &centerFmt, &footerBrush);
+}
+
 static void render_vector_subtitle(const std::wstring& text) {
     if (!g_overlay_hwnd) return;
-    if (text.empty()) {
+    if (text.empty() && !g_map_visible) {
         ShowWindow(g_overlay_hwnd, SW_HIDE);
         return;
     }
@@ -317,37 +544,39 @@ static void render_vector_subtitle(const std::wstring& text) {
         graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
         graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
 
-        int boxY = screen_h - static_cast<int>(screen_h * 0.16f);
-        int boxH = static_cast<int>(screen_h * 0.11f);
-        int marginX = static_cast<int>(screen_w * 0.10f);
-        int boxW = screen_w - (marginX * 2);
+        if (g_map_visible) {
+            render_map_screen(graphics, screen_w, screen_h);
+        }
 
-        // Translucent dark pill banner for contrast
-        Gdiplus::SolidBrush bgBrush(Gdiplus::Color(140, 10, 10, 15));
-        graphics.FillRectangle(&bgBrush, marginX - 30, boxY - 10, boxW + 60, boxH + 20);
+        if (!text.empty()) {
+            int boxY = screen_h - static_cast<int>(screen_h * 0.16f);
+            int boxH = static_cast<int>(screen_h * 0.11f);
+            int marginX = static_cast<int>(screen_w * 0.10f);
+            int boxW = screen_w - (marginX * 2);
 
-        // Adaptive font sizing based on resolution (approx 32px at 1080p, 43px at 1440p, 65px at 4K)
-        float fontSize = screen_h * 0.032f;
-        if (fontSize < 18.0f) fontSize = 18.0f;
-        Gdiplus::Font font(L"Segoe UI", fontSize, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+            Gdiplus::SolidBrush bgBrush(Gdiplus::Color(160, 10, 10, 15));
+            graphics.FillRectangle(&bgBrush, marginX - 30, boxY - 10, boxW + 60, boxH + 20);
 
-        Gdiplus::StringFormat format;
-        format.SetAlignment(Gdiplus::StringAlignmentCenter);
-        format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+            float fontSize = screen_h * 0.032f;
+            if (fontSize < 18.0f) fontSize = 18.0f;
+            Gdiplus::Font font(L"Segoe UI", fontSize, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 
-        Gdiplus::RectF layoutRect(static_cast<float>(marginX), static_cast<float>(boxY),
-                                  static_cast<float>(boxW), static_cast<float>(boxH));
+            Gdiplus::StringFormat format;
+            format.SetAlignment(Gdiplus::StringAlignmentCenter);
+            format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 
-        // High contrast dropshadow
-        Gdiplus::SolidBrush shadowBrush(Gdiplus::Color(220, 0, 0, 0));
-        Gdiplus::RectF shadowRect = layoutRect;
-        shadowRect.X += 2.0f;
-        shadowRect.Y += 2.0f;
-        graphics.DrawString(text.c_str(), -1, &font, shadowRect, &format, &shadowBrush);
+            Gdiplus::RectF layoutRect(static_cast<float>(marginX), static_cast<float>(boxY),
+                                      static_cast<float>(boxW), static_cast<float>(boxH));
 
-        // Warm gold Soul Reaver typography
-        Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 255, 235, 140));
-        graphics.DrawString(text.c_str(), -1, &font, layoutRect, &format, &textBrush);
+            Gdiplus::SolidBrush shadowBrush(Gdiplus::Color(220, 0, 0, 0));
+            Gdiplus::RectF shadowRect = layoutRect;
+            shadowRect.X += 2.0f;
+            shadowRect.Y += 2.0f;
+            graphics.DrawString(text.c_str(), -1, &font, shadowRect, &format, &shadowBrush);
+
+            Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 255, 235, 140));
+            graphics.DrawString(text.c_str(), -1, &font, layoutRect, &format, &textBrush);
+        }
 
         Gdiplus::BitmapData bmpData{};
         Gdiplus::Rect lockRect(0, 0, screen_w, screen_h);
@@ -539,8 +768,16 @@ static void __cdecl subtitle_flush() {
         }
         x = old_x; y = old_y; color = old_color;
     } else {
-        if (g_overlay_available && previous != -1) {
-            render_vector_subtitle(L"");
+        if (g_overlay_available) {
+            static ULONGLONG s_last_map_draw = 0;
+            if (g_map_visible) {
+                if (now - s_last_map_draw >= 33) {
+                    s_last_map_draw = now;
+                    render_vector_subtitle(L"");
+                }
+            } else if (previous != -1) {
+                render_vector_subtitle(L"");
+            }
         }
         previous = -1;
     }
@@ -876,17 +1113,49 @@ static void poll_dualsense_and_inject() {
     const bool btn_l2       = btn(6) || cam_right || btn_r3; // Stick right -> camera looks right (in-game L2 orbit)
     const bool btn_r2       = btn(7) || cam_left  || btn_r3;  // Stick left -> camera looks left (in-game R2 orbit)
     const bool btn_select   = btn(8);
-    const bool btn_start    = btn(9) || btn(12) || btn(13);
+    const bool btn_start    = btn(9) || btn(12);
+    const bool btn_touchpad = btn(13) || ((GetAsyncKeyState('M') & 0x8000) != 0);
 
-    const bool final_move_up   = move_up   || (btn_r1 && cam_up);
-    const bool final_move_down = move_down || (btn_r1 && cam_down);
+    static bool s_prev_touchpad = false;
+    if (btn_touchpad && !s_prev_touchpad) {
+        g_map_visible = !g_map_visible;
+        trigger_rumble(0x1000, 0x3000, 50);
+        log_line(g_map_visible ? "Nosgoth Exploration Map opened" : "Nosgoth Exploration Map closed");
+        render_vector_subtitle(L"");
+    } else if (g_map_visible && (btn_circle || ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0))) {
+        g_map_visible = false;
+        trigger_rumble(0x0800, 0x1500, 30);
+        render_vector_subtitle(L"");
+        log_line("Nosgoth Exploration Map closed");
+    }
+    s_prev_touchpad = btn_touchpad;
+
+    bool final_move_up   = move_up   || (btn_r1 && cam_up);
+    bool final_move_down = move_down || (btn_r1 && cam_down);
+    bool act_move_left = move_left;
+    bool act_move_right = move_right;
+    bool act_sq = btn_square;
+    bool act_cr = btn_cross;
+    bool act_tr = btn_triangle;
+    bool act_circle = btn_circle;
+
+    if (g_map_visible) {
+        final_move_up = false;
+        final_move_down = false;
+        act_move_left = false;
+        act_move_right = false;
+        act_sq = false;
+        act_cr = false;
+        act_tr = false;
+        act_circle = false;
+    }
 
     bool analog_walk = false;
     LONG stick_dx = js.lX - kCenter;
     LONG stick_dy = js.lY - kCenter;
     double stick_dist = sqrt(static_cast<double>(stick_dx * stick_dx + stick_dy * stick_dy));
 
-    if (base == 0x400000) {
+    if (base == 0x400000 && !g_map_visible) {
         auto* cam = reinterpret_cast<unsigned char*>(base + 0x864560);
         if (cam) {
             short& pitch = *reinterpret_cast<short*>(cam + 0x136);
@@ -926,17 +1195,17 @@ static void poll_dualsense_and_inject() {
         if (btn_select)   buttons &= ~0x0001;
         if (btn_start)    buttons &= ~0x0008;
         if (final_move_up)   buttons &= ~0x0010;
-        if (move_right)   buttons &= ~0x0020;
+        if (act_move_right)  buttons &= ~0x0020;
         if (final_move_down) buttons &= ~0x0040;
-        if (move_left)    buttons &= ~0x0080;
+        if (act_move_left)   buttons &= ~0x0080;
         if (btn_l2)       buttons &= ~0x0100;
         if (btn_r2)       buttons &= ~0x0200;
         if (btn_l1)       buttons &= ~0x0400;
         if (btn_r1)       buttons &= ~0x0800;
-        if (btn_triangle) buttons &= ~0x1000;
-        if (btn_circle)   buttons &= ~0x2000;
-        if (btn_cross)    buttons &= ~0x4000;
-        if (btn_square)   buttons &= ~0x8000;
+        if (act_tr)       buttons &= ~0x1000;
+        if (act_circle)   buttons &= ~0x2000;
+        if (act_cr)       buttons &= ~0x4000;
+        if (act_sq)       buttons &= ~0x8000;
     }
 
     auto pad0_ptr = reinterpret_cast<unsigned char*>(base + 0x860f60);
@@ -945,35 +1214,35 @@ static void poll_dualsense_and_inject() {
         if (btn_select)   buttons0 &= ~0x0001;
         if (btn_start)    buttons0 &= ~0x0008;
         if (final_move_up)   buttons0 &= ~0x0010;
-        if (move_right)   buttons0 &= ~0x0020;
+        if (act_move_right)  buttons0 &= ~0x0020;
         if (final_move_down) buttons0 &= ~0x0040;
-        if (move_left)    buttons0 &= ~0x0080;
+        if (act_move_left)   buttons0 &= ~0x0080;
         if (btn_l2)       buttons0 &= ~0x0100;
         if (btn_r2)       buttons0 &= ~0x0200;
         if (btn_l1)       buttons0 &= ~0x0400;
         if (btn_r1)       buttons0 &= ~0x0800;
-        if (btn_triangle) buttons0 &= ~0x1000;
-        if (btn_circle)   buttons0 &= ~0x2000;
-        if (btn_cross)    buttons0 &= ~0x4000;
-        if (btn_square)   buttons0 &= ~0x8000;
+        if (act_tr)       buttons0 &= ~0x1000;
+        if (act_circle)   buttons0 &= ~0x2000;
+        if (act_cr)       buttons0 &= ~0x4000;
+        if (act_sq)       buttons0 &= ~0x8000;
     }
 
     auto kbd = reinterpret_cast<unsigned char*>(base + 0x866900);
     if (kbd) {
         if (final_move_up)   kbd[0xc8] |= 0x80;
         if (final_move_down) kbd[0xd0] |= 0x80;
-        if (move_left)    kbd[0xcb] |= 0x80;
-        if (move_right)   kbd[0xcd] |= 0x80;
-        if (btn_square)   kbd[0x1e] |= 0x80;
-        if (btn_cross)    kbd[0x2d] |= 0x80;
-        if (btn_circle)   kbd[0x20] |= 0x80;
-        if (btn_triangle) kbd[0x21] |= 0x80;
-        if (btn_l1)       kbd[0x1f] |= 0x80;
+        if (act_move_left)   kbd[0xcb] |= 0x80;
+        if (act_move_right)  kbd[0xcd] |= 0x80;
+        if (act_sq)          kbd[0x1e] |= 0x80;
+        if (act_cr)          kbd[0x2d] |= 0x80;
+        if (act_circle)      kbd[0x20] |= 0x80;
+        if (act_tr)          kbd[0x21] |= 0x80;
+        if (btn_l1)          kbd[0x1f] |= 0x80;
         if (btn_r1 || analog_walk) kbd[0x2e] |= 0x80;
-        if (btn_l2)       kbd[0x52] |= 0x80;
-        if (btn_r2)       kbd[0x9d] |= 0x80;
-        if (btn_start)    kbd[0x01] |= 0x80;
-        if (btn_select)   kbd[0x1c] |= 0x80;
+        if (btn_l2)          kbd[0x52] |= 0x80;
+        if (btn_r2)          kbd[0x9d] |= 0x80;
+        if (btn_start)       kbd[0x01] |= 0x80;
+        if (btn_select)      kbd[0x1c] |= 0x80;
     }
 
     HWND target_wnd = fg ? fg : GetActiveWindow();
