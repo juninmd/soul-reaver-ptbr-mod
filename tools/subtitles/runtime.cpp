@@ -223,6 +223,166 @@ static bool install_hook() {
     return true;
 }
 
+static bool patch_memory_bytes(DWORD addr, const void* expected, const void* patch, size_t size) {
+    auto ptr = reinterpret_cast<unsigned char*>(addr);
+    if (expected && memcmp(ptr, expected, size) != 0) return false;
+    DWORD old;
+    if (!VirtualProtect(ptr, size, PAGE_EXECUTE_READWRITE, &old)) return false;
+    memcpy(ptr, patch, size);
+    DWORD ignored;
+    VirtualProtect(ptr, size, old, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), ptr, size);
+    return true;
+}
+
+static bool install_60fps_patches() {
+    if (base != 0x400000) return false;
+    const unsigned char exp_add_ecx[] = {0x83, 0xc1, 0x21};
+    const unsigned char pat_add_ecx[] = {0x83, 0xc1, 0x10};
+    const unsigned char exp_add_edx[] = {0x83, 0xc2, 0x21};
+    const unsigned char pat_add_edx[] = {0x83, 0xc2, 0x10};
+    const unsigned char exp_mov_ecx[] = {0xb9, 0x21, 0x00, 0x00, 0x00};
+    const unsigned char pat_mov_ecx[] = {0xb9, 0x10, 0x00, 0x00, 0x00};
+
+    bool ok = true;
+    ok &= patch_memory_bytes(base + 0x390f5, exp_add_ecx, pat_add_ecx, sizeof(exp_add_ecx));
+    ok &= patch_memory_bytes(base + 0x39107, exp_add_edx, pat_add_edx, sizeof(exp_add_edx));
+    ok &= patch_memory_bytes(base + 0x39be4, exp_add_ecx, pat_add_ecx, sizeof(exp_add_ecx));
+    ok &= patch_memory_bytes(base + 0x39bf6, exp_add_edx, pat_add_edx, sizeof(exp_add_edx));
+    ok &= patch_memory_bytes(base + 0xac452, exp_mov_ecx, pat_mov_ecx, sizeof(exp_mov_ecx));
+    ok &= patch_memory_bytes(base + 0xac49d, exp_mov_ecx, pat_mov_ecx, sizeof(exp_mov_ecx));
+    return ok;
+}
+
+struct TextureSlot {
+    DWORD last_access;
+    int page_id;
+    void* surface;
+    DWORD flags;
+};
+
+static TextureSlot* __cdecl hook_upload_texture(int page_index, const void* src_buffer) {
+    if (page_index < 0) return nullptr;
+    auto slots = reinterpret_cast<TextureSlot*>(base + 0x840390);
+    int num_slots = *reinterpret_cast<int*>(base + 0x8400dc);
+    if (num_slots <= 0 || num_slots > 128) num_slots = 64;
+    DWORD current_time = *reinterpret_cast<DWORD*>(base + 0x8409cc);
+
+    int best_slot = 0;
+    DWORD oldest_time = 0xFFFFFFFF;
+    for (int i = 0; i < num_slots; ++i) {
+        if (slots[i].page_id == -1) {
+            best_slot = i;
+            break;
+        }
+        if (slots[i].last_access < oldest_time) {
+            oldest_time = slots[i].last_access;
+            best_slot = i;
+        }
+    }
+
+    TextureSlot* slot = &slots[best_slot];
+    if (!slot->surface) return slot;
+
+    void** vtbl = *reinterpret_cast<void***>(slot->surface);
+    using LockFn = HRESULT(STDMETHODCALLTYPE*)(void*, LPRECT, void*, DWORD, HANDLE);
+    using UnlockFn = HRESULT(STDMETHODCALLTYPE*)(void*, LPRECT);
+    auto lock_fn = reinterpret_cast<LockFn>(vtbl[25]);
+    auto unlock_fn = reinterpret_cast<UnlockFn>(vtbl[32]);
+
+    unsigned char desc[124] = {0};
+    *reinterpret_cast<DWORD*>(desc) = sizeof(desc);
+    HRESULT hr = lock_fn(slot->surface, nullptr, desc, 0x00000821 /* DDLOCK_WAIT | DDLOCK_WRITEONLY */, nullptr);
+    if (FAILED(hr)) return slot;
+
+    void* lpSurface = *reinterpret_cast<void**>(desc + 0x24);
+    DWORD pitch = *reinterpret_cast<DWORD*>(desc + 0x10);
+    DWORD width = *reinterpret_cast<DWORD*>(desc + 0x0c);
+    DWORD height = *reinterpret_cast<DWORD*>(desc + 0x08);
+
+    bool loaded = false;
+    if (width == 1024 && height == 1024 && lpSurface) {
+        wchar_t path[MAX_PATH];
+        swprintf_s(path, L"%shd-textures\\page-%04d.raw", directory().c_str(), page_index);
+        HANDLE file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (file != INVALID_HANDLE_VALUE) {
+            LARGE_INTEGER size;
+            if (GetFileSizeEx(file, &size) && size.QuadPart == 1024 * 1024 * 2) {
+                if (pitch == 2048) {
+                    DWORD count = 0;
+                    if (ReadFile(file, lpSurface, 1024 * 1024 * 2, &count, nullptr) && count == 1024 * 1024 * 2) {
+                        loaded = true;
+                    }
+                } else {
+                    static std::vector<unsigned char> temp(1024 * 1024 * 2);
+                    DWORD count = 0;
+                    if (ReadFile(file, temp.data(), static_cast<DWORD>(temp.size()), &count, nullptr) && count == temp.size()) {
+                        for (DWORD y = 0; y < 1024; ++y) {
+                            memcpy(reinterpret_cast<unsigned char*>(lpSurface) + y * pitch, temp.data() + y * 2048, 2048);
+                        }
+                        loaded = true;
+                    }
+                }
+            }
+            CloseHandle(file);
+        }
+    }
+
+    if (!loaded && lpSurface && src_buffer) {
+        const auto* src16 = reinterpret_cast<const uint16_t*>(src_buffer);
+        if (width == 1024 && height == 1024) {
+            for (DWORD y = 0; y < 1024; ++y) {
+                DWORD sy = y >> 2;
+                auto* dst_row = reinterpret_cast<uint16_t*>(reinterpret_cast<unsigned char*>(lpSurface) + y * pitch);
+                for (DWORD x = 0; x < 1024; ++x) {
+                    DWORD sx = x >> 2;
+                    dst_row[x] = src16[sy * 256 + sx];
+                }
+            }
+        } else {
+            for (DWORD y = 0; y < 256; ++y) {
+                memcpy(reinterpret_cast<unsigned char*>(lpSurface) + y * pitch, src16 + y * 256, 512);
+            }
+        }
+    }
+
+    unlock_fn(slot->surface, nullptr);
+    slot->last_access = current_time;
+    slot->page_id = page_index;
+    return slot;
+}
+
+static bool install_hd_textures_hook() {
+    if (base != 0x400000) return false;
+    const unsigned char exp_surf[] = {0xb8, 0x00, 0x01, 0x00, 0x00};
+    const unsigned char pat_surf[] = {0xb8, 0x00, 0x04, 0x00, 0x00};
+    patch_memory_bytes(base + 0x72c21, exp_surf, pat_surf, sizeof(exp_surf));
+    patch_memory_bytes(base + 0x72d31, exp_surf, pat_surf, sizeof(exp_surf));
+
+    auto target = reinterpret_cast<unsigned char*>(base + 0x72e70);
+    const unsigned char expected[] = {0x81, 0xec, 0x88, 0x00, 0x00, 0x00};
+    if (memcmp(target, expected, sizeof(expected)) != 0) return false;
+
+    DWORD old;
+    if (!VirtualProtect(target, 6, PAGE_EXECUTE_READWRITE, &old)) return false;
+    target[0] = 0xe9;
+    *reinterpret_cast<DWORD*>(target + 1) = reinterpret_cast<DWORD>(&hook_upload_texture) - reinterpret_cast<DWORD>(target + 5);
+    target[5] = 0x90;
+    DWORD ignored;
+    VirtualProtect(target, 6, old, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), target, 6);
+    return true;
+}
+
+// DualSense: the game's DirectInput joystick path ignores the POV hat and treats analog axes as
+// digital without a dead zone. Translate the hat into lX/lY on the 80-byte DIJOYSTATE the game asks for.
+using CreateDeviceFn = HRESULT(STDMETHODCALLTYPE*)(void*, REFGUID, void**, void*);
+using GetStateFn = HRESULT(STDMETHODCALLTYPE*)(void*, DWORD, void*);
+struct PatchedSlot { void** table; void* original; };
+static PatchedSlot patched_states[4];
+static CreateDeviceFn real_create_device;
+static bool joystick_hook_enabled;
+
 static BOOL CALLBACK initialize(PINIT_ONCE, PVOID, PVOID*) {
     wchar_t system[32768];
     UINT length = GetSystemDirectoryW(system, ARRAYSIZE(system));
@@ -231,18 +391,86 @@ static BOOL CALLBACK initialize(PINIT_ONCE, PVOID, PVOID*) {
     HMODULE library = LoadLibraryW(system);
     if (library) real_create = reinterpret_cast<InputCreate>(GetProcAddress(library, "DirectInputCreateA"));
     if (!real_create) { log_line("System DirectInput unavailable"); return TRUE; }
-    if (!verified_executable()) { log_line("Unsupported executable; subtitles disabled"); return TRUE; }
-    if (!load_captions()) { log_line("Missing/invalid captions; subtitles disabled"); return TRUE; }
-    log_line(install_hook() ? "Experimental subtitle hook active" : "Hook guard failed; subtitles disabled");
+    if (!verified_executable()) { log_line("Unsupported executable; hooks disabled"); return TRUE; }
+    if (load_captions()) {
+        log_line(install_hook() ? "Experimental subtitle hook active" : "Hook guard failed; subtitles disabled");
+    }
+    joystick_hook_enabled = true;
+    log_line(install_60fps_patches() ? "60 FPS patches active" : "60 FPS patch guard failed");
+    log_line(install_hd_textures_hook() ? "HD texture 1024x1024 hook active" : "HD texture hook guard failed");
     return TRUE;
+}
+
+static bool patch_slot(void** table, size_t index, void* replacement, void** original) {
+    DWORD old;
+    if (!VirtualProtect(&table[index], sizeof(void*), PAGE_READWRITE, &old)) return false;
+    *original = table[index];
+    table[index] = replacement;
+    DWORD ignored;
+    VirtualProtect(&table[index], sizeof(void*), old, &ignored);
+    return true;
+}
+
+static HRESULT STDMETHODCALLTYPE joystick_state(void* device, DWORD size, void* data) {
+    void** table = *reinterpret_cast<void***>(device);
+    GetStateFn original = nullptr;
+    for (auto& slot : patched_states) if (slot.table == table) original = reinterpret_cast<GetStateFn>(slot.original);
+    if (!original) return E_FAIL;
+    const HRESULT status = original(device, size, data);
+    if (SUCCEEDED(status) && size >= 80 && data) {
+        auto* state = static_cast<LONG*>(data);
+        auto* pov = reinterpret_cast<DWORD*>(static_cast<unsigned char*>(data) + 0x20);
+        // Apply deadzone: suppress analog stick drift near centre (+/- 300)
+        for (int axis = 0; axis < 2; ++axis) {
+            if (state[axis] > -300 && state[axis] < 300) state[axis] = 0;
+        }
+        // Map DualSense D-Pad (POV hat) to lX / lY
+        if (LOWORD(pov[0]) != 0xFFFF) {
+            const DWORD angle = pov[0] % 36000;
+            if (angle >= 4500 && angle <= 13500) state[0] = 1000;
+            else if (angle >= 22500 && angle <= 31500) state[0] = -1000;
+
+            if (angle >= 31500 || angle <= 4500) state[1] = -1000;
+            else if (angle >= 13500 && angle <= 22500) state[1] = 1000;
+        }
+    }
+    return status;
+}
+
+static HRESULT STDMETHODCALLTYPE create_device_hook(void* input, REFGUID guid, void** device, void* outer) {
+    const HRESULT status = real_create_device(input, guid, device, outer);
+    if (SUCCEEDED(status) && device && *device) {
+        void** table = *reinterpret_cast<void***>(*device);
+        for (auto& slot : patched_states) {
+            if (slot.table == table) return status;
+            if (!slot.table) {
+                void* original = nullptr;
+                if (patch_slot(table, 9, reinterpret_cast<void*>(&joystick_state), &original)) slot = {table, original};
+                return status;
+            }
+        }
+    }
+    return status;
 }
 
 extern "C" HRESULT WINAPI DirectInputCreateA(HINSTANCE instance, DWORD version, void** result, void* outer) {
     InitOnceExecuteOnce(&once, initialize, nullptr, nullptr);
-    return real_create ? real_create(instance, version, result, outer) : E_FAIL;
+    if (!real_create) return E_FAIL;
+    const HRESULT status = real_create(instance, version, result, outer);
+    if (SUCCEEDED(status) && result && *result && joystick_hook_enabled && !real_create_device) {
+        void** table = *reinterpret_cast<void***>(*result);
+        void* original = nullptr;
+        if (patch_slot(table, 3, reinterpret_cast<void*>(&create_device_hook), &original))
+            real_create_device = reinterpret_cast<CreateDeviceFn>(original);
+    }
+    return status;
 }
 
 BOOL WINAPI DllMain(HINSTANCE module, DWORD reason, LPVOID) {
-    if (reason == DLL_PROCESS_ATTACH) { self_module = module; DisableThreadLibraryCalls(module); }
+    if (reason == DLL_PROCESS_ATTACH) {
+        self_module = module;
+        DisableThreadLibraryCalls(module);
+        InitOnceExecuteOnce(&once, initialize, nullptr, nullptr);
+    }
     return TRUE;
 }

@@ -22,7 +22,7 @@ andamento — nenhum dos dois guarda arquivo oficial.
 | Pasta | Manifesto | Componente do core | Conteúdo |
 |---|---|---|---|
 | `modules/voices/` | `manifest.json` | voices (`.soul-reaver-ptbr/state.json`) | 230 `voice-XXXX.pcm` (dublagem PT-BR) |
-| `modules/localization/` | `assets.json` | assets — journal `assets-state.json` | `asset-locals.pc` (menus/dicas), `asset-subtitles.tsv` (legendas), `asset-DINPUT.dll` (proxy) |
+| `modules/localization/` | `assets.json` | assets — journal `assets-state.json` | Menus/dicas, legendas, proxy e, quando incluído no manifesto, `asset-bigfile.dat` com o fundo de Nosgoth |
 | `modules/video/` | `video.json` | assets — journal **`video-state.json`** | 8 `asset-*.bik` (`intro`, `chrono3/5/7/9/11/13`, `verse`) |
 | `modules/graphics/` | — | graphics | `DDraw.dll`, `D3DImm.dll`, `dgVoodoo.conf` (4K + Hor+ 16:9) |
 | `modules/textures/` | `textures.json` | external `TEXTURES` — journal `textures-state.json` | 1.287 `payload/page-XXXX.raw` (HD 1024²) — **experimental** |
@@ -33,6 +33,10 @@ andamento — nenhum dos dois guarda arquivo oficial.
 Legendas e vídeos têm pastas e journals separados: a localização cobre menus,
 dicas, legendas e o proxy; os vídeos (BIK) são um componente próprio, o que
 permite restaurar um sem mexer no outro.
+
+O [fundo do menu Nosgoth](MENU-NOSGOTH.md) usa o componente de localização.
+Ele substitui somente a imagem nativa `title1.pti` dentro de uma cópia verificada
+de `bigfile.dat`; o pacote local continua fora do Git.
 
 ## Como o instalador resolve
 

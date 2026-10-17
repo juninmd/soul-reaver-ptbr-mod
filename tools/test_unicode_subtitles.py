@@ -12,8 +12,8 @@ import build_dialogue_subtitles as builder
 
 
 PTBR_CORPUS = (
-    "áéíóúãõçâêôà ÀÉ — … § © ™. "
-    "Rahab, Moebius, Dumah, Kain e Nosgoth."
+    "áéíóúãõçâêôà ÁÉÍÓÚÃÕÇÂÊÔÀ — … § © ™. "
+    "Raziel, Rahab, Moebius, Dumah, Kain e Nosgoth."
 )
 
 
@@ -50,9 +50,9 @@ class UnicodeSubtitleContractTests(unittest.TestCase):
         self.assertIn(PTBR_CORPUS.encode("utf-8"), raw)
         self.assertFalse(envelope["captions"][0]["text"].isascii(),
                          "unicode-v1 must not regress to ASCII-only text")
-        for character in "áéíóúãõçâêôàÀÉ":
+        for character in "áéíóúãõçâêôàÁÉÍÓÚÃÕÇÂÊÔÀ":
             self.assertIn(character, envelope["captions"][0]["text"])
-        for name in ("Rahab", "Moebius", "Dumah", "Kain", "Nosgoth"):
+        for name in ("Raziel", "Rahab", "Moebius", "Dumah", "Kain", "Nosgoth"):
             self.assertIn(name, envelope["captions"][0]["text"])
         self.assertEqual(unicodedata.normalize("NFC", raw.decode("utf-8")), raw.decode("utf-8"))
         meta = json.loads(output.with_suffix(".evidence.json").read_text(encoding="utf-8"))
@@ -101,6 +101,11 @@ class UnicodeSubtitleContractTests(unittest.TestCase):
                             for page in pages))
         self.assertTrue(any(not page["text"].isascii() for page in pages),
                         "every Unicode page must retain non-ASCII characters")
+        paginated_text = " ".join(page["text"] for page in pages)
+        for character in "áéíóúãõçâêôàÁÉÍÓÚÃÕÇÂÊÔÀ":
+            self.assertIn(character, paginated_text)
+        for name in ("Raziel", "Rahab", "Moebius", "Dumah", "Kain", "Nosgoth"):
+            self.assertIn(name, paginated_text)
 
     def test_unicode_pagination_refuses_duration_shorter_than_page_count(self):
         text = " ".join(f"palavra{i}" for i in range(70))
@@ -157,7 +162,7 @@ class UnicodeSubtitleContractTests(unittest.TestCase):
         self.assertTrue(output.read_bytes().isascii())
 
     def test_legacy_stays_ascii_while_unicode_keeps_the_same_accented_source(self):
-        text = "A maldição de Raziel é impossível…"
+        text = "A maldição de Raziel é impossível… ÁGUA, coração, bênção e ação."
         unicode_output = self.root / "accented.json"
         builder.build(self.plan(text), unicode_output, format="unicode-v1")
         unicode_row = json.loads(unicode_output.read_text(encoding="utf-8"))["captions"][0]
@@ -167,7 +172,7 @@ class UnicodeSubtitleContractTests(unittest.TestCase):
         legacy_output = self.root / "accented-legacy.tsv"
         builder.build(self.plan(text), legacy_output, format="legacy")
         self.assertEqual(legacy_output.read_bytes(),
-                         b"10\t100\tA maldicao de Raziel e impossivel...\n")
+                         b"10\t100\tA maldicao de Raziel e impossivel... AGUA, coracao, bencao e acao.\n")
         self.assertTrue(legacy_output.read_bytes().isascii())
 
     def test_existing_destination_is_never_overwritten(self):

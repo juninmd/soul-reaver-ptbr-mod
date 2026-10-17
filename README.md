@@ -194,6 +194,7 @@ O desenvolvimento e a geração preservam a instalação original e os saves.
 | [Instalador Nosgoth](docs/INSTALADOR-NOSGOTH.md) | Interface, compilação, estados e validação. |
 | [Módulos produtivos](docs/MODULOS.md) | Estrutura local dos pacotes e mapa de componentes. |
 | [Controle DualSense](docs/DUALSENSE.md) | Botões, instalação, limitações e preservação. |
+| [Fundo do menu Nosgoth](docs/MENU-NOSGOTH.md) | Arte, formato nativo, empacotamento e restauração do fundo do menu principal. |
 | [Reinserção de voz](docs/VALIDACAO-REINSERCAO-VOZ.md) | Evidências do piloto e limites da validação em runtime. |
 | [Referências](REFERENCES.md) | Ferramentas, fontes e documentação técnica. |
 

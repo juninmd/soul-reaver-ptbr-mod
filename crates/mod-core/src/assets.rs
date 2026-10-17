@@ -17,12 +17,24 @@ pub const LOCALIZATION: AssetsComponent = AssetsComponent {
     id: "localization",
     label: "Localização",
     state_file: "assets-state.json",
-    known: &[(
-        "locals.pc",
-        "2244304cbf1d89f7aaee44c534cf185c0ffd037272deee909247727be1d54d84",
-    )],
-    created: &["DINPUT.dll", ".soul-reaver-ptbr/subtitles.tsv"],
-    max_files: 3,
+    known: &[
+        (
+            "locals.pc",
+            "2244304cbf1d89f7aaee44c534cf185c0ffd037272deee909247727be1d54d84",
+        ),
+        (
+            "bigfile.dat",
+            "30295bb8bdd059a3001f4b30d68973fd2e6a3ae50ea444087c8a17e94adeb035",
+        ),
+    ],
+    created: &[
+        "DINPUT.dll",
+        ".soul-reaver-ptbr/subtitles.tsv",
+        ".soul-reaver-ptbr/unicode-runtime-overlay.dll",
+        ".soul-reaver-ptbr/unicode-runtime-bridge.js",
+        ".soul-reaver-ptbr/subtitles-unicode-v1.json",
+    ],
+    max_files: 7,
 };
 
 pub const VIDEO: AssetsComponent = AssetsComponent {
@@ -30,6 +42,14 @@ pub const VIDEO: AssetsComponent = AssetsComponent {
     label: "Vídeos",
     state_file: "video-state.json",
     known: &[
+        (
+            "crylogo.bik",
+            "de25840d0e384908489709b993847ec4b04b4d9806f2538256bc1bb6b50cc402",
+        ),
+        (
+            "publogo.bik",
+            "25ca73fa5b7d8794bfba3b607363142ba08fc512ef2452aa302d527fdbfc3cc2",
+        ),
         (
             "intro.bik",
             "8786078e1cd9f5938c766fb1e84db35fcde51f1f253ff463192e6314bad753ef",
@@ -64,7 +84,7 @@ pub const VIDEO: AssetsComponent = AssetsComponent {
         ),
     ],
     created: &[],
-    max_files: 8,
+    max_files: 10,
 };
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -857,6 +877,50 @@ fn restore_checked_control(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn menu_background_requires_the_supported_archive_base() {
+        let source = "30295bb8bdd059a3001f4b30d68973fd2e6a3ae50ea444087c8a17e94adeb035";
+        let result = sha(b"menu candidate");
+        valid_asset(&LOCALIZATION, "bigfile.dat", Some(source), &result).unwrap();
+        assert!(valid_asset(&LOCALIZATION, "bigfile.dat", None, &result).is_err());
+        assert!(valid_asset(&LOCALIZATION, "bigfile.dat", Some(&result), source).is_err());
+        assert!(valid_asset(&LOCALIZATION, "other.dat", Some(source), &result).is_err());
+        assert!(valid_asset(&LOCALIZATION, "bigfile.dat", Some(source), source).is_err());
+    }
+
+    #[test]
+    fn company_openings_require_known_originals_and_stay_in_video_component() {
+        let result = sha(b"new project opening");
+        for (file, source) in [
+            ("crylogo.bik", "de25840d0e384908489709b993847ec4b04b4d9806f2538256bc1bb6b50cc402"),
+            ("publogo.bik", "25ca73fa5b7d8794bfba3b607363142ba08fc512ef2452aa302d527fdbfc3cc2"),
+        ] {
+            valid_asset(&VIDEO, file, Some(source), &result).unwrap();
+            assert!(valid_asset(&VIDEO, file, None, &result).is_err());
+            assert!(valid_asset(&VIDEO, file, Some(&result), source).is_err());
+            assert!(valid_asset(&LOCALIZATION, file, Some(source), &result).is_err());
+        }
+    }
+
+    #[test]
+    fn unicode_subtitle_payload_paths_are_allowlisted_as_new_files() {
+        let result = sha(b"candidate payload");
+        for file in [
+            ".soul-reaver-ptbr/unicode-runtime-overlay.dll",
+            ".soul-reaver-ptbr/unicode-runtime-bridge.js",
+            ".soul-reaver-ptbr/subtitles-unicode-v1.json",
+        ] {
+            valid_asset(&LOCALIZATION, file, None, &result).unwrap();
+        }
+        assert!(valid_asset(
+            &LOCALIZATION,
+            ".soul-reaver-ptbr/unicode/unapproved.dll",
+            None,
+            &result,
+        )
+        .is_err());
+    }
 
     const TEST_VIDEO_CREATED: &[&str] = &["intro.bik"];
     const TEST_VIDEO: AssetsComponent = AssetsComponent {

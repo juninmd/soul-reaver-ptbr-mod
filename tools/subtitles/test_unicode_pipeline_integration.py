@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import struct
 import subprocess
 import tempfile
 import unittest
@@ -17,6 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "tools"
 sys.path.insert(0, str(TOOLS))
 import build_dialogue_subtitles as builder  # noqa: E402
+sys.path.insert(0, str(ROOT / "validate/77-unicode-package-poc"))
+import package_contract  # noqa: E402
 
 
 class UnicodePipelineBridgeIntegrationTests(unittest.TestCase):
@@ -32,6 +35,15 @@ class UnicodePipelineBridgeIntegrationTests(unittest.TestCase):
             audio.writeframes(b"\x01\x00" * 44100)
         return path.name, hashlib.sha256(path.read_bytes()).hexdigest()
 
+    @staticmethod
+    def write_test_pe(path: Path) -> None:
+        image = bytearray(128)
+        image[:2] = b"MZ"
+        struct.pack_into("<I", image, 0x3C, 64)
+        image[64:68] = b"PE\0\0"
+        struct.pack_into("<H", image, 68, 0x14C)
+        path.write_bytes(image)
+
     def test_built_unicode_envelope_round_trips_through_bridge_validation(self) -> None:
         node = shutil.which("node")
         if not node:
@@ -39,6 +51,7 @@ class UnicodePipelineBridgeIntegrationTests(unittest.TestCase):
 
         long_text = " ".join(
             ["A maldição de Raziel — impossível…"]
+            + ["áéíóúãõçâêôà ÀÉ; Raziel, Kain, Dumah, Moebius e Nosgoth."]
             + ["Água, coração, bênção e ação"] * 12
         )
         cases = [
@@ -76,6 +89,10 @@ class UnicodePipelineBridgeIntegrationTests(unittest.TestCase):
         self.assertEqual(result["captions"], 2)
         self.assertIn("maldição", text)
         self.assertIn("coração", text)
+        for character in "áéíóúãõçâêôà ÀÉ":
+            self.assertIn(character, text)
+        for name in ("Raziel", "Kain", "Dumah", "Moebius", "Nosgoth"):
+            self.assertIn(name, text)
         self.assertIn("…", text)
         self.assertNotIn("mal dicao", text)
         self.assertGreater(len(rows[0]["pages"]), 1)
@@ -95,6 +112,25 @@ class UnicodePipelineBridgeIntegrationTests(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)
         self.assertIn("PASS: 2 captions", completed.stdout)
+
+        # Close the generator-to-package path with the offline package contract.
+        # Fake PE headers are fixtures only; no native overlay or game is launched.
+        overlay = self.work / "overlay-fixture.dll"
+        proxy = self.work / "proxy-fixture.dll"
+        legacy_tsv = self.work / "legacy.tsv"
+        package = self.work / "package"
+        self.write_test_pe(overlay)
+        self.write_test_pe(proxy)
+        legacy_tsv.write_bytes(b"10\t2000\tFallback ASCII.\n")
+        manifest = package_contract.build_package(overlay, output, proxy, legacy_tsv, package)
+        self.assertEqual(manifest["default_route"], "legacy")
+        packaged_json = package / "unicode/captions-unicode-v1.json"
+        self.assertEqual(packaged_json.read_bytes(), payload)
+        packaged_text = packaged_json.read_text(encoding="utf-8")
+        for character in "áéíóúãõçâêôà ÀÉ":
+            self.assertIn(character, packaged_text)
+        self.assertIn("Raziel", packaged_text)
+        self.assertTrue((package / "legacy/subtitles.tsv").read_bytes().isascii())
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ LOTE = {
     381: ("raziel", "Observei, invisível, enquanto vultos sombrios deslizavam pelos muros do templo. A cidade dormia, alheia ao perigo que rastejava logo ali fora.", "I watched unseen as shadowy figures slipped down the temple walls..."),
     377: ("raziel", "Que destino cruel. Suas almas se misturando, atadas para sempre. A recusa de Kain nos pilares as unira séculos antes.", "Such a dire fate. Their souls commingling, fettered eternally..."),
     371: ("raziel", "Que destino cruel, suas almas se misturando, atadas para sempre, tal como a recusa de Kain as unira séculos antes.", "Such a dire fate, their souls commingling, fettered eternally..."),
-    293: ("raziel", "A sala parecia vazia, mas os estandartes a identificavam: a câmara de Turel.", "Though the room seemed vacant, these banners clearly identified it as Turel's audience chamber."),
+    293: ("raziel", "A sala parecia vazia, mas os estandartes revelavam a câmara de Turel.", "Though the room seemed vacant, these banners clearly identified it as Turel's audience chamber."),
 }
 
 
