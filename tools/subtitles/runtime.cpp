@@ -483,8 +483,9 @@ static void poll_dualsense_and_inject() {
     const bool btn_triangle = btn(3);
     const bool btn_l1       = btn(4);
     const bool btn_r1       = btn(5);
-    const bool btn_l2       = btn(6) || cam_right; // Stick right -> camera looks right (in-game L2 orbit)
-    const bool btn_r2       = btn(7) || cam_left;  // Stick left -> camera looks left (in-game R2 orbit)
+    const bool btn_r3       = btn(11); // Right stick click: instant camera center
+    const bool btn_l2       = btn(6) || cam_right || btn_r3; // Stick right -> camera looks right (in-game L2 orbit)
+    const bool btn_r2       = btn(7) || cam_left  || btn_r3;  // Stick left -> camera looks left (in-game R2 orbit)
     const bool btn_select   = btn(8);
     const bool btn_start    = btn(9) || btn(12) || btn(13);
 
@@ -549,6 +550,37 @@ static void poll_dualsense_and_inject() {
     }
 
     HWND target_wnd = fg ? fg : GetActiveWindow();
+    static bool s_icon_set = false;
+    if (!s_icon_set && target_wnd) {
+        wchar_t icon_path[MAX_PATH];
+        swprintf_s(icon_path, L"%ssoul-reaver.ico", directory().c_str());
+        HICON hIcon = (HICON)LoadImageW(nullptr, icon_path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+        if (hIcon) {
+            SendMessageW(target_wnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+            SendMessageW(target_wnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+            SetClassLongPtrW(target_wnd, GCLP_HICON, (LONG_PTR)hIcon);
+            SetClassLongPtrW(target_wnd, GCLP_HICONSM, (LONG_PTR)hIcon);
+            s_icon_set = true;
+            log_line("High-resolution window icon applied");
+        }
+    }
+
+    static bool s_borderless_set = false;
+    if (!s_borderless_set && target_wnd) {
+        int screen_w = GetSystemMetrics(SM_CXSCREEN);
+        int screen_h = GetSystemMetrics(SM_CYSCREEN);
+        LONG_PTR style = GetWindowLongPtrW(target_wnd, GWL_STYLE);
+        style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
+        style |= WS_POPUP;
+        SetWindowLongPtrW(target_wnd, GWL_STYLE, style);
+        LONG_PTR ex_style = GetWindowLongPtrW(target_wnd, GWL_EXSTYLE);
+        ex_style &= ~WS_EX_TOPMOST;
+        SetWindowLongPtrW(target_wnd, GWL_EXSTYLE, ex_style);
+        SetWindowPos(target_wnd, HWND_NOTOPMOST, 0, 0, screen_w, screen_h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+        s_borderless_set = true;
+        log_line("Borderless windowed mode applied");
+    }
+
     if (btn_start && !g_prev_start_pressed) {
         *reinterpret_cast<DWORD*>(base + 0x8542f4) = 1;
         if (target_wnd) PostMessageA(target_wnd, WM_KEYDOWN, VK_ESCAPE, 0x00010001);
@@ -566,7 +598,46 @@ static void __cdecl hook_UpdateInput() {
     if (original_UpdateInput) {
         original_UpdateInput();
     }
+    static bool s_aspect_fixed = false;
+    if (!s_aspect_fixed && base == 0x400000) {
+        int w = *reinterpret_cast<int*>(base + 0x840b5c);
+        int h = *reinterpret_cast<int*>(base + 0x8409d4);
+        if (w > 0 && h > 0) {
+            float aspect = static_cast<float>(w) / static_cast<float>(h);
+            if (aspect > 1.4f) {
+                float fixed_ratio = (4.0f / 3.0f) * (4.0f / 3.0f) / aspect;
+                DWORD old_p;
+                auto* target_aspect = reinterpret_cast<float*>(base + 0xec358);
+                if (VirtualProtect(target_aspect, sizeof(float), PAGE_EXECUTE_READWRITE, &old_p)) {
+                    *target_aspect = fixed_ratio;
+                    VirtualProtect(target_aspect, sizeof(float), old_p, &old_p);
+                    s_aspect_fixed = true;
+                    char msg[128];
+                    sprintf_s(msg, "Widescreen 3D aspect ratio correction active (%dx%d, aspect=%.3f)", w, h, aspect);
+                    log_line(msg);
+                }
+            }
+        }
+    }
     poll_dualsense_and_inject();
+}
+
+static bool install_engine_optimizations() {
+    if (base != 0x400000) return false;
+
+    // Multicore CPU Affinity lock to Core 0 (prevents timing desync, audio stutter and multithread crashes)
+    SetProcessAffinityMask(GetCurrentProcess(), 1);
+
+    // Expand default fog distance (Far=22000, Near=20000) to double draw distance and eliminate pop-in
+    DWORD old_p;
+    auto* fog_far = reinterpret_cast<uint16_t*>(base + 0xf5f40);
+    auto* fog_near = reinterpret_cast<uint16_t*>(base + 0xf5f44);
+    if (VirtualProtect(fog_far, sizeof(uint32_t) * 2, PAGE_EXECUTE_READWRITE, &old_p)) {
+        *fog_far = 22000;
+        *fog_near = 20000;
+        VirtualProtect(fog_far, sizeof(uint32_t) * 2, old_p, &old_p);
+    }
+    return true;
 }
 
 static bool install_dualsense_hook() {
@@ -597,6 +668,7 @@ static BOOL CALLBACK initialize(PINIT_ONCE, PVOID, PVOID*) {
     }
     log_line(install_60fps_patches() ? "60 FPS patches active" : "60 FPS patch guard failed");
     log_line(install_hd_textures_hook() ? "HD texture 1024x1024 hook active" : "HD texture hook guard failed");
+    log_line(install_engine_optimizations() ? "Engine optimizations active (Affinity + Fog Far 22000)" : "Engine optimizations failed");
     log_line(install_dualsense_hook() ? "DualSense native input hook active" : "DualSense hook guard failed");
     return TRUE;
 }
