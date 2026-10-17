@@ -1059,6 +1059,76 @@ static void __cdecl hook_UpdateInput() {
         }
     }
     poll_dualsense_and_inject();
+
+    // DualSense Dynamic Lightbar: Realm (Material Blue vs Spectral Cyan) & Health (Pulse Red)
+    static ULONGLONG s_last_lightbar_update = 0;
+    const ULONGLONG now = GetTickCount64();
+    if (now - s_last_lightbar_update >= 100) {
+        s_last_lightbar_update = now;
+
+        int realm = 0;
+        int health = 100;
+        auto player_ptr = *reinterpret_cast<unsigned char**>(base + 0xd2a40);
+        if (player_ptr) {
+            auto extra = *reinterpret_cast<unsigned char**>(player_ptr + 0x14);
+            if (extra) {
+                realm = *reinterpret_cast<int*>(extra + 0x00) & 1;
+                int balls = *reinterpret_cast<int*>(extra + 0x04);
+                if (balls >= 1 && balls <= 5) health = balls * 20;
+            }
+        }
+
+        unsigned char r = 0, g = 110, b = 255;
+        if (health < 25) {
+            bool pulse = ((now / 250) % 2) == 0;
+            r = pulse ? 255 : 80;
+            g = pulse ? 15 : 0;
+            b = pulse ? 20 : 0;
+        } else if (realm == 1) {
+            r = 0;
+            g = 255;
+            b = 180;
+        } else {
+            r = 0;
+            g = 110;
+            b = 255;
+        }
+
+        static unsigned char prev_r = 0, prev_g = 0, prev_b = 0;
+        if (r != prev_r || g != prev_g || b != prev_b) {
+            prev_r = r; prev_g = g; prev_b = b;
+            for (int i = 0; i < 4; ++i) {
+                wchar_t dev_path[128];
+                swprintf_s(dev_path, L"\\\\.\\HID#VID_054C&PID_0CE6#%d", i);
+                HANDLE h = CreateFileW(dev_path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+                if (h != INVALID_HANDLE_VALUE) {
+                    unsigned char report[48] = {0};
+                    report[0] = 0x02; // DualSense USB output report ID
+                    report[1] = 0xff; // Valid flags 1
+                    report[2] = 0xf7; // Valid flags 2
+                    report[9] = r;    // Red
+                    report[10] = g;   // Green
+                    report[11] = b;   // Blue
+                    DWORD written = 0;
+                    WriteFile(h, report, sizeof(report), &written, nullptr);
+                    CloseHandle(h);
+                    break;
+                }
+            }
+
+            wchar_t path[MAX_PATH];
+            swprintf_s(path, L"%s.soul-reaver-ptbr\\controller-state.json", directory().c_str());
+            HANDLE hFile = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (hFile != INVALID_HANDLE_VALUE) {
+                char json[256];
+                sprintf_s(json, "{\"connected\":true,\"realm\":%d,\"health\":%d,\"lightbar\":{\"r\":%d,\"g\":%d,\"b\":%d}}\r\n",
+                          realm, health, r, g, b);
+                DWORD written = 0;
+                WriteFile(hFile, json, static_cast<DWORD>(strlen(json)), &written, nullptr);
+                CloseHandle(hFile);
+            }
+        }
+    }
 }
 
 static bool install_engine_optimizations() {
