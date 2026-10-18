@@ -46,6 +46,9 @@ def rewrite_conf(source: Path, resolution: str, windowed: bool) -> bytes:
         key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
         if key == "FullScreenMode" and windowed:
             lines[index] = "FullScreenMode                       = false"
+        if key == "PresentationModel" and windowed:
+            # Flip models can bypass DWM composition, which hides the vector subtitle/map overlay windows.
+            lines[index] = "PresentationModel                    = discard"
         if section != "DirectX":
             continue
         if key == "Resolution":
@@ -53,6 +56,9 @@ def rewrite_conf(source: Path, resolution: str, windowed: bool) -> bytes:
             seen_directx = True
         elif key == "dgVoodooWatermark":
             lines[index] = "dgVoodooWatermark                   = false"
+        elif key == "Filtering":
+            # 16x anisotropic keeps the native 256x256 pages sharp at oblique angles on a 4K output.
+            lines[index] = "Filtering                           = 16"
     if not seen_directx:
         raise ValueError("dgVoodoo.conf sem seção [DirectX]/Resolution")
     return ("\n".join(lines) + "\n").encode("utf-8")

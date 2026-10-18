@@ -14,9 +14,17 @@ SPEC.loader.exec_module(bundle_builder)
 CONF = """[General]
 FullScreenMode                       = true
 
+[GeneralExt]
+PresentationModel                    = auto
+
 [DirectX]
 Resolution                          = unforced
 dgVoodooWatermark                   = true
+Filtering                           = appdriven
+Antialiasing                        = appdriven
+
+[Glide]
+Antialiasing                        = appdriven
 """
 
 
@@ -33,6 +41,9 @@ class RewriteConfTests(unittest.TestCase):
             self.assertIn("Resolution                          = 3840x2160", text)
             self.assertIn("FullScreenMode                       = false", text)
             self.assertIn("dgVoodooWatermark                   = false", text)
+            self.assertIn("PresentationModel                    = discard", text)
+            self.assertIn("Filtering                           = 16", text)
+            self.assertNotIn("= 4x", text)  # MSAA stays application-driven
 
     def test_missing_directx_section_is_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
