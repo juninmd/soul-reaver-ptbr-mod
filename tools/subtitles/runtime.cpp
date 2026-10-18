@@ -7,17 +7,20 @@
 #include <windows.h>
 #include <objidl.h>
 #include <algorithm>
+#include <map>
 namespace Gdiplus {
     using std::min;
     using std::max;
 }
 #include <gdiplus.h>
+#include <dwmapi.h>
 #include <dinput.h>
 #include <setupapi.h>
 #include <hidsdi.h>
 #include <mmsystem.h>
 #include <bcrypt.h>
 #include <array>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -50,6 +53,10 @@ static void log_line(const char* text) {
                               nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE) return;
     DWORD written;
+    static const ULONGLONG s_log_epoch = GetTickCount64();
+    char stamp[24];
+    const int stamp_len = sprintf_s(stamp, "[+%7llu] ", GetTickCount64() - s_log_epoch);
+    if (stamp_len > 0) WriteFile(file, stamp, static_cast<DWORD>(stamp_len), &written, nullptr);
     WriteFile(file, text, static_cast<DWORD>(strlen(text)), &written, nullptr);
     WriteFile(file, "\r\n", 2, &written, nullptr);
     CloseHandle(file);
@@ -247,16 +254,29 @@ static bool load_unicode_captions() {
 static ULONG_PTR g_gdiplus_token = 0;
 static HWND g_overlay_hwnd = nullptr;
 static bool g_overlay_inited = false;
-static bool g_overlay_available = false;
+static std::atomic<bool> g_overlay_available{false};
 
 static LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
+static HANDLE g_overlay_wake = nullptr;
+static CRITICAL_SECTION g_overlay_lock;
+static std::wstring g_overlay_request;
+
+// The overlay is rendered off the game thread: a full-screen GDI+ redraw costs 80-500 ms.
+static DWORD WINAPI overlay_thread(LPVOID);
+
 static void ensure_overlay_window(HWND /*game_hwnd*/) {
     if (g_overlay_inited) return;
     g_overlay_inited = true;
+    InitializeCriticalSection(&g_overlay_lock);
+    g_overlay_wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    HANDLE thread = g_overlay_wake ? CreateThread(nullptr, 0, overlay_thread, nullptr, 0, nullptr) : nullptr;
+    if (thread) CloseHandle(thread);
+}
 
+static bool create_overlay_window() {
     Gdiplus::GdiplusStartupInput gdiplusStartupInput;
     Gdiplus::GdiplusStartup(&g_gdiplus_token, &gdiplusStartupInput, nullptr);
 
@@ -278,11 +298,13 @@ static void ensure_overlay_window(HWND /*game_hwnd*/) {
         nullptr, nullptr, self_module, nullptr
     );
 
-    if (g_overlay_hwnd) {
-        g_overlay_available = true;
-        log_line("Vector HD subtitle overlay initialized");
-    }
+    if (!g_overlay_hwnd) return false;
+    g_overlay_available = true;
+    log_line("Vector HD subtitle overlay initialized");
+    return true;
 }
+
+#include "area_trace.h"
 
 struct PlayerState {
     int realm = 0;
@@ -334,26 +356,52 @@ static RealmHealthState get_player_state() {
     return state;
 }
 
-static bool g_map_visible = false;
+static std::atomic<bool> g_map_visible{false};
+static std::atomic<bool> g_settings_visible{false};
+static bool modal_open() { return g_map_visible || g_settings_visible; }
+// Shown on menu screens (no player in the scene) so the F10 settings panel is discoverable from the main menu.
+static std::atomic<bool> g_menu_hint{false};
+static const wchar_t kMenuHintText[] = L"F10 / Create  ·  Resolução e som";
+static std::atomic<bool> g_test_subtitle_active{false};
 
 struct MapSector {
     const wchar_t* name;
     float norm_x;
     float norm_y;
-    int unit_id;
+    const char* areas; // '|'-separated engine area prefixes (e.g. "under"); empty = not yet identified in game
 };
 
 static const MapSector g_sectors[] = {
-    { L"Submundo & Lago dos Mortos", 0.50f, 0.85f, 1 },
-    { L"Santu\u00e1rio dos Cl\u00e3s", 0.50f, 0.60f, 2 },
-    { L"Necr\u00f3pole de Melchiah", 0.25f, 0.72f, 3 },
-    { L"Catedral Silenciada de Zephon", 0.78f, 0.48f, 4 },
-    { L"Pilares de Nosgoth", 0.28f, 0.42f, 5 },
-    { L"Tumba dos Sarafan", 0.50f, 0.38f, 6 },
-    { L"Abadia Submersa de Rahab", 0.50f, 0.22f, 7 },
-    { L"Fortaleza da Montanha de Dumah", 0.75f, 0.25f, 8 },
-    { L"C\u00e2mara do Tempo (Chronoplast)", 0.32f, 0.15f, 9 }
+    { L"Submundo & Lago dos Mortos", 0.50f, 0.85f, "under" },
+    { L"Santu\u00e1rio dos Cl\u00e3s", 0.50f, 0.60f, "hub" },
+    { L"Necr\u00f3pole de Melchiah", 0.25f, 0.72f, "" },
+    { L"Catedral Silenciada de Zephon", 0.78f, 0.48f, "cathy" },
+    { L"Pilares de Nosgoth", 0.28f, 0.42f, "clfpil" },
+    { L"Tumba dos Sarafan", 0.50f, 0.38f, "" },
+    { L"Abadia Submersa de Rahab", 0.50f, 0.22f, "" },
+    { L"Fortaleza da Montanha de Dumah", 0.75f, 0.25f, "" },
+    { L"C\u00e2mara do Tempo (Chronoplast)", 0.32f, 0.15f, "chrono" }
 };
+
+// The area name the loader formats most recently ("under", "cathy", ...) selects the current sector. Only
+// prefixes confirmed in game are listed; an unidentified area shows no marker instead of a wrong one.
+static int current_sector_index() {
+    char area[32];
+    memcpy(area, g_last_area_name, sizeof(area));
+    area[31] = 0;
+    if (!area[0]) return -1;
+    for (int i = 0; i < static_cast<int>(sizeof(g_sectors) / sizeof(g_sectors[0])); ++i) {
+        const char* list = g_sectors[i].areas;
+        while (*list) {
+            const char* end = strchr(list, '|');
+            const size_t len = end ? static_cast<size_t>(end - list) : strlen(list);
+            if (len && !strncmp(area, list, len)) return i;
+            if (!end) break;
+            list = end + 1;
+        }
+    }
+    return -1;
+}
 
 struct ObjectiveInfo {
     const wchar_t* region;
@@ -399,153 +447,159 @@ static ObjectiveInfo get_current_objective() {
         obj.description = L"Atravesse as montanhas geladas, adentre o dispositivo temporal de Moebius e alcance Kain no tear do destino.";
     }
 
-    for (const auto& sec : g_sectors) {
-        if (sec.unit_id == unit_id) {
-            obj.region = sec.name;
-            break;
-        }
-    }
+    (void)unit_id;
+    const int sector = current_sector_index();
+    if (sector >= 0) obj.region = g_sectors[sector].name;
     return obj;
 }
 
-static void render_map_screen(Gdiplus::Graphics& graphics, int screen_w, int screen_h) {
-    int mapW = static_cast<int>(screen_w * 0.82f);
-    int mapH = static_cast<int>(screen_h * 0.82f);
-    int mapX = (screen_w - mapW) / 2;
-    int mapY = (screen_h - mapH) / 2;
+#include "map_render.h"
+#include "settings_panel.h"
 
-    Gdiplus::SolidBrush shadowBrush(Gdiplus::Color(220, 5, 5, 8));
-    graphics.FillRectangle(&shadowBrush, mapX - 15, mapY - 15, mapW + 30, mapH + 30);
+static BOOL CALLBACK find_game_hwnd_cb(HWND hwnd, LPARAM lParam) {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != GetCurrentProcessId()) return TRUE;
+    if (hwnd == g_overlay_hwnd) return TRUE;
+    if (!IsWindowVisible(hwnd)) return TRUE;
+    wchar_t cls[64] = {};
+    GetClassNameW(hwnd, cls, 63);
+    if (wcscmp(cls, L"#32770") == 0) return TRUE;
+    if (wcscmp(cls, L"SR_VectorSubtitleOverlay") == 0) return TRUE;
+    *reinterpret_cast<HWND*>(lParam) = hwnd;
+    return FALSE;
+}
 
-    Gdiplus::SolidBrush bgBrush(Gdiplus::Color(245, 18, 22, 28));
-    graphics.FillRectangle(&bgBrush, mapX, mapY, mapW, mapH);
+static HWND get_game_hwnd() {
+    HWND hwnd = nullptr;
+    EnumWindows(find_game_hwnd_cb, reinterpret_cast<LPARAM>(&hwnd));
+    return hwnd;
+}
 
-    Gdiplus::Pen goldPen(Gdiplus::Color(255, 212, 160, 70), 3.0f);
-    graphics.DrawRectangle(&goldPen, mapX, mapY, mapW, mapH);
-    Gdiplus::Pen innerPen(Gdiplus::Color(160, 150, 110, 45), 1.0f);
-    graphics.DrawRectangle(&innerPen, mapX + 6, mapY + 6, mapW - 12, mapH - 12);
+#include "frame_overlay.h"
 
-    auto obj = get_current_objective();
-    float titleSize = screen_h * 0.028f;
-    if (titleSize < 16.0f) titleSize = 16.0f;
-    Gdiplus::Font titleFont(L"Georgia", titleSize, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-    Gdiplus::Font subFont(L"Segoe UI", titleSize * 0.72f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-    Gdiplus::Font bodyFont(L"Segoe UI", titleSize * 0.65f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+static bool g_overlay_visible = false;
+static bool g_last_map_state = false;
+static std::wstring g_last_subtitle_text;
 
-    Gdiplus::StringFormat centerFmt;
-    centerFmt.SetAlignment(Gdiplus::StringAlignmentCenter);
-    centerFmt.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+// The overlay covers the game window itself, so it lands on the right monitor and size even when the
+// game is not on the primary display; the primary screen is only the fallback.
+static RECT overlay_target_rect() {
+    RECT rect{0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)};
+    HWND game = FindWindowW(L"G2WndClass", nullptr);
+    DWORD pid = 0;
+    if (game) GetWindowThreadProcessId(game, &pid);
+    RECT window{};
+    if (game && pid == GetCurrentProcessId() && IsWindowVisible(game) && !IsIconic(game) && GetWindowRect(game, &window) &&
+        window.right - window.left >= 320 && window.bottom - window.top >= 240)
+        rect = window;
+    return rect;
+}
 
-    Gdiplus::SolidBrush titleBrush(Gdiplus::Color(255, 255, 225, 140));
-    Gdiplus::RectF titleRect(static_cast<float>(mapX), static_cast<float>(mapY + 12),
-                            static_cast<float>(mapW), titleSize * 1.5f);
-    graphics.DrawString(L"MAPA DE EXPLORA\u00c7\u00c3O DE NOSGOTH", -1, &titleFont, titleRect, &centerFmt, &titleBrush);
+// Global key/pad polling must not react to other apps (Alt+Tab, typing elsewhere).
+static bool game_is_foreground() {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+    return pid == GetCurrentProcessId();
+}
 
-    int objY = mapY + static_cast<int>(titleSize * 1.6f) + 10;
-    int objH = static_cast<int>(screen_h * 0.075f);
-    int objW = mapW - 60;
-    int objX = mapX + 30;
+// The game is often launched by the installer or a launcher and never becomes the foreground window,
+// yet it is what the player sees. Subtitles only need it to be the top visible window at its centre.
+struct TopWindowProbe { POINT center; bool found; bool ours; };
 
-    Gdiplus::SolidBrush objBg(Gdiplus::Color(220, 28, 34, 44));
-    graphics.FillRectangle(&objBg, objX, objY, objW, objH);
-    Gdiplus::Pen objBorder(Gdiplus::Color(200, 180, 140, 60), 1.5f);
-    graphics.DrawRectangle(&objBorder, objX, objY, objW, objH);
+static BOOL CALLBACK probe_top_window(HWND hwnd, LPARAM param) {
+    auto* probe = reinterpret_cast<TopWindowProbe*>(param);
+    if (hwnd == g_overlay_hwnd || !IsWindowVisible(hwnd) || IsIconic(hwnd)) return TRUE;
+    const LONG ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+    if (ex_style & WS_EX_TRANSPARENT) return TRUE;
+    DWORD cloaked = 0;
+    if (SUCCEEDED(DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked) return TRUE;
+    RECT rect{};
+    if (!GetWindowRect(hwnd, &rect) || !PtInRect(&rect, probe->center)) return TRUE;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    probe->found = true;
+    probe->ours = pid == GetCurrentProcessId();
+    return FALSE;
+}
 
-    Gdiplus::SolidBrush goldBrush(Gdiplus::Color(255, 255, 190, 50));
-    std::wstring objTitleText = std::wstring(L"[!] OBJETIVO: ") + obj.title + L" \u2014 " + obj.region;
-    Gdiplus::RectF objTitleRect(static_cast<float>(objX + 15), static_cast<float>(objY + 6),
-                               static_cast<float>(objW - 30), titleSize * 0.85f);
-    Gdiplus::StringFormat leftFmt;
-    leftFmt.SetAlignment(Gdiplus::StringAlignmentNear);
-    graphics.DrawString(objTitleText.c_str(), -1, &subFont, objTitleRect, &leftFmt, &goldBrush);
+static bool game_visible_to_user() {
+    const RECT rect = overlay_target_rect();
+    TopWindowProbe probe{{(rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2}, false, false};
+    EnumWindows(probe_top_window, reinterpret_cast<LPARAM>(&probe));
+    return probe.found && probe.ours;
+}
 
-    Gdiplus::SolidBrush descBrush(Gdiplus::Color(255, 220, 225, 230));
-    Gdiplus::RectF objDescRect(static_cast<float>(objX + 15), static_cast<float>(objY + 6 + titleSize * 0.85f),
-                              static_cast<float>(objW - 30), titleSize * 0.95f);
-    graphics.DrawString(obj.description, -1, &bodyFont, objDescRect, &leftFmt, &descBrush);
+static void render_overlay_now(const std::wstring& requested_text) {
+    if (!g_overlay_hwnd) return;
 
-    int canvasX = mapX + 40;
-    int canvasY = objY + objH + 15;
-    int canvasW = mapW - 80;
-    int canvasH = mapH - (canvasY - mapY) - 50;
+    const std::wstring flag = directory() + L".soul-reaver-ptbr\\capture.flag";
+    const bool want_capture = (GetFileAttributesW(flag.c_str()) != INVALID_FILE_ATTRIBUTES);
 
-    Gdiplus::Pen pathPen(Gdiplus::Color(150, 100, 85, 60), 2.5f);
-    pathPen.SetDashStyle(Gdiplus::DashStyleDash);
-
-    auto get_xy = [&](const MapSector& s) -> Gdiplus::PointF {
-        return Gdiplus::PointF(canvasX + s.norm_x * canvasW, canvasY + s.norm_y * canvasH);
-    };
-
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[0]), get_xy(g_sectors[1]));
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[1]), get_xy(g_sectors[2]));
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[1]), get_xy(g_sectors[3]));
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[1]), get_xy(g_sectors[4]));
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[4]), get_xy(g_sectors[5]));
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[5]), get_xy(g_sectors[6]));
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[6]), get_xy(g_sectors[7]));
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[7]), get_xy(g_sectors[8]));
-    graphics.DrawLine(&pathPen, get_xy(g_sectors[4]), get_xy(g_sectors[8]));
-
-    Gdiplus::SolidBrush nodeBrush(Gdiplus::Color(240, 35, 45, 55));
-    Gdiplus::Pen nodePen(Gdiplus::Color(220, 180, 140, 70), 2.0f);
-    Gdiplus::Font nodeFont(L"Segoe UI", titleSize * 0.60f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-
-    auto pl_st = get_player_state();
-    PlayerState ps;
-    safe_read_player_state(ps);
-    int current_unit = ps.unit_id;
-
-    Gdiplus::PointF player_pos(canvasX + 0.50f * canvasW, canvasY + 0.60f * canvasH);
-
-    for (size_t i = 0; i < ARRAYSIZE(g_sectors); ++i) {
-        Gdiplus::PointF pt = get_xy(g_sectors[i]);
-        float r = 10.0f;
-        graphics.FillEllipse(&nodeBrush, pt.X - r, pt.Y - r, r * 2, r * 2);
-        graphics.DrawEllipse(&nodePen, pt.X - r, pt.Y - r, r * 2, r * 2);
-
-        Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 230, 215, 175));
-        Gdiplus::RectF labelRect(pt.X - 140, pt.Y + 12, 280, 24);
-        graphics.DrawString(g_sectors[i].name, -1, &nodeFont, labelRect, &centerFmt, &textBrush);
-
-        if (g_sectors[i].unit_id == current_unit || (current_unit <= 1 && i == 0)) {
-            player_pos = pt;
+    // Hide only after the game has been in the background for a while (loading and window
+    // switches briefly report another foreground window).
+    static ULONGLONG s_background_since = 0;
+    if (!want_capture) {
+        if (game_is_foreground() || game_visible_to_user()) {
+            s_background_since = 0;
+        } else {
+            const ULONGLONG now_tick = GetTickCount64();
+            if (!s_background_since) s_background_since = now_tick;
+            if (now_tick - s_background_since >= 1500) {
+                if (g_overlay_visible || modal_open()) {
+                    DWORD fg_pid = 0;
+                    const HWND fg = GetForegroundWindow();
+                    GetWindowThreadProcessId(fg, &fg_pid);
+                    wchar_t fg_class[64] = L"?";
+                    if (fg) GetClassNameW(fg, fg_class, 63);
+                    char msg[160];
+                    sprintf_s(msg, "Overlay hidden: game in background (foreground pid=%lu class=%ls)", fg_pid, fg_class);
+                    log_line(msg);
+                }
+                g_map_visible = false;
+                g_settings_visible = false;
+                frame_overlay::clear();
+                if (g_overlay_visible) {
+                    ShowWindow(g_overlay_hwnd, SW_HIDE);
+                    g_overlay_visible = false;
+                }
+                g_last_map_state = false;
+                g_last_subtitle_text.clear();
+                return;
+            }
         }
     }
 
-    const ULONGLONG now = GetTickCount64();
-    float pulse = 1.0f + 0.25f * static_cast<float>(sin(now / 180.0));
-    float pinR = 14.0f * pulse;
-    Gdiplus::SolidBrush pinGlow(Gdiplus::Color(100, 255, 215, 0));
-    graphics.FillEllipse(&pinGlow, player_pos.X - pinR * 1.5f, player_pos.Y - pinR * 1.5f, pinR * 3.0f, pinR * 3.0f);
-
-    Gdiplus::SolidBrush pinBrush(Gdiplus::Color(255, 255, 220, 40));
-    graphics.FillEllipse(&pinBrush, player_pos.X - pinR, player_pos.Y - pinR, pinR * 2, pinR * 2);
-    Gdiplus::Pen pinBorder(Gdiplus::Color(255, 255, 255, 255), 2.0f);
-    graphics.DrawEllipse(&pinBorder, player_pos.X - pinR, player_pos.Y - pinR, pinR * 2, pinR * 2);
-
-    Gdiplus::Font tagFont(L"Segoe UI", titleSize * 0.68f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-    Gdiplus::SolidBrush tagBrush(Gdiplus::Color(255, 255, 245, 120));
-    Gdiplus::RectF tagRect(player_pos.X - 80, player_pos.Y - pinR - 22, 160, 20);
-    graphics.DrawString(L"\u2605 RAZIEL", -1, &tagFont, tagRect, &centerFmt, &tagBrush);
-
-    std::wstring footer = L"Plano Atual: " + std::wstring(pl_st.realm == 1 ? L"ESPECTRAL" : L"MATERIAL") +
-                          L"  \u2022  [Touchpad / M] Fechar Mapa  \u2022  Navega\u00e7\u00e3o de Nosgoth";
-    Gdiplus::SolidBrush footerBrush(Gdiplus::Color(200, 180, 180, 190));
-    Gdiplus::RectF footerRect(static_cast<float>(mapX), static_cast<float>(mapY + mapH - 32),
-                             static_cast<float>(mapW), 24.0f);
-    graphics.DrawString(footer.c_str(), -1, &subFont, footerRect, &centerFmt, &footerBrush);
-}
-
-static void render_vector_subtitle(const std::wstring& text) {
-    if (!g_overlay_hwnd) return;
-    if (text.empty() && !g_map_visible) {
-        ShowWindow(g_overlay_hwnd, SW_HIDE);
+    const std::wstring text = (requested_text.empty() && g_menu_hint && !modal_open()) ? std::wstring(kMenuHintText) : requested_text;
+    if (text.empty() && !modal_open()) {
+        frame_overlay::clear();
+        if (g_overlay_visible) {
+            ShowWindow(g_overlay_hwnd, SW_HIDE);
+            g_overlay_visible = false;
+        }
+        g_last_map_state = false;
+        g_last_subtitle_text.clear();
         return;
     }
 
-    int screen_w = GetSystemMetrics(SM_CXSCREEN);
-    int screen_h = GetSystemMetrics(SM_CYSCREEN);
+    if (!modal_open() && !want_capture && g_overlay_visible && !g_last_map_state && text == g_last_subtitle_text) {
+        if (frame_overlay::ready()) return;
+        SetWindowPos(g_overlay_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        return;
+    }
+    g_last_map_state = modal_open();
+    g_last_subtitle_text = text;
+
+    const RECT target = overlay_target_rect();
+    int screen_w = target.right - target.left;
+    int screen_h = target.bottom - target.top;
     if (screen_w <= 0 || screen_h <= 0) return;
+    const ULONGLONG draw_start = GetTickCount64();
+    // Subtitles only need the bottom quarter; a full-screen layered bitmap costs ~80 ms per page change at 1440p.
+    const int full_h = screen_h;
+    const bool strip = !modal_open() && !want_capture;
+    if (strip) screen_h = std::max(1, full_h / 4);
+    const int origin_y = full_h - screen_h;
 
     BITMAPINFO bi{};
     bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -568,62 +622,84 @@ static void render_vector_subtitle(const std::wstring& text) {
         Gdiplus::Bitmap bmp(screen_w, screen_h, PixelFormat32bppPARGB);
         Gdiplus::Graphics graphics(&bmp);
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
-        graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+        graphics.SetCompositingQuality(Gdiplus::CompositingQualityHighQuality);
+        graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
         graphics.Clear(Gdiplus::Color(0, 0, 0, 0));
+        if (strip) graphics.TranslateTransform(0.0f, -static_cast<float>(origin_y));
 
         if (g_map_visible) {
             render_map_screen(graphics, screen_w, screen_h);
         }
+        if (g_settings_visible) settings::render(graphics, screen_w, screen_h);
 
-        if (!text.empty()) {
-            int boxY = screen_h - static_cast<int>(screen_h * 0.16f);
-            int boxH = static_cast<int>(screen_h * 0.11f);
-            int marginX = static_cast<int>(screen_w * 0.10f);
-            int boxW = screen_w - (marginX * 2);
-
-            Gdiplus::SolidBrush bgBrush(Gdiplus::Color(160, 10, 10, 15));
-            graphics.FillRectangle(&bgBrush, marginX - 30, boxY - 10, boxW + 60, boxH + 20);
-
-            float fontSize = screen_h * 0.032f;
-            if (fontSize < 18.0f) fontSize = 18.0f;
-            Gdiplus::Font font(L"Segoe UI", fontSize, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+        // The map is modal and owns the bottom edge, so subtitles wait for it to close.
+        if (!text.empty() && !modal_open()) {
+            const int marginX = static_cast<int>(screen_w * 0.10f);
+            const int boxW = screen_w - (marginX * 2);
+            const int maxH = static_cast<int>(full_h * 0.16f);
+            const int bottom = full_h - static_cast<int>(full_h * 0.05f);
 
             Gdiplus::StringFormat format;
             format.SetAlignment(Gdiplus::StringAlignmentCenter);
             format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
 
+            // Shrink long lines until they fit the box instead of clipping them.
+            float fontSize = std::max(20.0f, full_h * 0.033f);
+            const float minSize = std::max(16.0f, full_h * 0.022f);
+            Gdiplus::RectF measured;
+            Gdiplus::Font* fitted = nullptr;
+            for (;; fontSize *= 0.92f) {
+                delete fitted;
+                fitted = new Gdiplus::Font(L"Segoe UI", fontSize, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+                graphics.MeasureString(text.c_str(), -1, fitted, Gdiplus::RectF(0, 0, static_cast<float>(boxW), 0),
+                                       &format, &measured);
+                if (measured.Height <= maxH || fontSize * 0.92f < minSize) break;
+            }
+            Gdiplus::Font& font = *fitted;
+            const int boxH = std::min(maxH, static_cast<int>(measured.Height) + 8);
+            const int boxY = bottom - boxH;
+
+            Gdiplus::SolidBrush bgBrush(Gdiplus::Color(185, 8, 10, 16));
+            Gdiplus::Pen borderPen(Gdiplus::Color(140, 180, 150, 85), 1.5f);
+            graphics.FillRectangle(&bgBrush, marginX - 30, boxY - 10, boxW + 60, boxH + 20);
+            graphics.DrawRectangle(&borderPen, marginX - 30, boxY - 10, boxW + 60, boxH + 20);
+
             Gdiplus::RectF layoutRect(static_cast<float>(marginX), static_cast<float>(boxY),
                                       static_cast<float>(boxW), static_cast<float>(boxH));
 
-            Gdiplus::SolidBrush shadowBrush(Gdiplus::Color(220, 0, 0, 0));
-            Gdiplus::RectF shadowRect = layoutRect;
-            shadowRect.X += 2.0f;
-            shadowRect.Y += 2.0f;
-            graphics.DrawString(text.c_str(), -1, &font, shadowRect, &format, &shadowBrush);
+            Gdiplus::SolidBrush shadowBrush(Gdiplus::Color(235, 0, 0, 0));
+            const float offsets[8][2] = {
+                {-2.0f, 0.0f}, {2.0f, 0.0f}, {0.0f, -2.0f}, {0.0f, 2.0f},
+                {-1.5f, -1.5f}, {1.5f, -1.5f}, {-1.5f, 1.5f}, {2.5f, 2.5f}
+            };
+            for (const auto& off : offsets) {
+                Gdiplus::RectF oRect = layoutRect;
+                oRect.X += off[0];
+                oRect.Y += off[1];
+                graphics.DrawString(text.c_str(), -1, &font, oRect, &format, &shadowBrush);
+            }
 
-            Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 255, 235, 140));
+            Gdiplus::SolidBrush textBrush(Gdiplus::Color(255, 255, 240, 155));
             graphics.DrawString(text.c_str(), -1, &font, layoutRect, &format, &textBrush);
+            delete fitted;
         }
 
-        {
-            const std::wstring flag = directory() + L".soul-reaver-ptbr\\capture.flag";
-            if (GetFileAttributesW(flag.c_str()) != INVALID_FILE_ATTRIBUTES) {
-                UINT n = 0, sz = 0;
-                Gdiplus::GetImageEncodersSize(&n, &sz);
-                std::vector<unsigned char> buf(sz);
-                auto* enc = reinterpret_cast<Gdiplus::ImageCodecInfo*>(buf.data());
-                if (sz && Gdiplus::GetImageEncoders(n, sz, enc) == Gdiplus::Ok) {
-                    for (UINT i = 0; i < n; ++i) {
-                        if (wcscmp(enc[i].MimeType, L"image/png") == 0) {
-                            const std::wstring out = directory() + L".soul-reaver-ptbr\\overlay-capture.png";
-                            bmp.Save(out.c_str(), &enc[i].Clsid, nullptr);
-                            break;
-                        }
+        if (want_capture) {
+            UINT n = 0, sz = 0;
+            Gdiplus::GetImageEncodersSize(&n, &sz);
+            std::vector<unsigned char> buf(sz);
+            auto* enc = reinterpret_cast<Gdiplus::ImageCodecInfo*>(buf.data());
+            if (sz && Gdiplus::GetImageEncoders(n, sz, enc) == Gdiplus::Ok) {
+                for (UINT i = 0; i < n; ++i) {
+                    if (wcscmp(enc[i].MimeType, L"image/png") == 0) {
+                        const std::wstring out = directory() + L".soul-reaver-ptbr\\overlay-capture.png";
+                        bmp.Save(out.c_str(), &enc[i].Clsid, nullptr);
+                        break;
                     }
                 }
-                DeleteFileW(flag.c_str());
-                log_line("Overlay capture saved");
             }
+            DeleteFileW(flag.c_str());
+            log_line("Overlay capture saved");
         }
 
         Gdiplus::BitmapData bmpData{};
@@ -639,20 +715,84 @@ static void render_vector_subtitle(const std::wstring& text) {
 
     POINT ptSrc = { 0, 0 };
     SIZE sizeDst = { screen_w, screen_h };
-    POINT ptDst = { 0, 0 };
+    POINT ptDst = { target.left, target.top + origin_y };
     BLENDFUNCTION blend{};
     blend.BlendOp = AC_SRC_OVER;
     blend.BlendFlags = 0;
     blend.SourceConstantAlpha = 255;
     blend.AlphaFormat = AC_SRC_ALPHA;
 
-    UpdateLayeredWindow(g_overlay_hwnd, screenDC, &ptDst, &sizeDst, memDC, &ptSrc, 0, &blend, ULW_ALPHA);
-    ShowWindow(g_overlay_hwnd, SW_SHOWNOACTIVATE);
+    if (frame_overlay::ready() && !want_capture) {
+        // Drawn inside the game's own frame: no z-order, focus or DWM dependency. The window stays hidden.
+        frame_overlay::publish(pvBits, screen_w, screen_h, static_cast<float>(screen_h) / static_cast<float>(full_h));
+        ShowWindow(g_overlay_hwnd, SW_HIDE);
+    } else {
+        frame_overlay::clear();
+        UpdateLayeredWindow(g_overlay_hwnd, screenDC, &ptDst, &sizeDst, memDC, &ptSrc, 0, &blend, ULW_ALPHA);
+        SetWindowPos(g_overlay_hwnd, HWND_TOPMOST, target.left, target.top + origin_y, screen_w, screen_h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    }
+    g_overlay_visible = true;
+    {
+        static int s_slow_logged = 0;
+        const ULONGLONG took = GetTickCount64() - draw_start;
+        if (took >= 20 && s_slow_logged < 10) {
+            ++s_slow_logged;
+            char msg[96];
+            sprintf_s(msg, "Overlay draw took %llu ms (%dx%d map=%d)", took, screen_w, screen_h, g_map_visible ? 1 : 0);
+            log_line(msg);
+        }
+    }
 
     SelectObject(memDC, oldBmp);
     DeleteDC(memDC);
     DeleteObject(hBitmap);
     ReleaseDC(nullptr, screenDC);
+}
+
+static void render_vector_subtitle(const std::wstring& text) {
+    ensure_overlay_window(nullptr);
+    if (!g_overlay_wake) return;
+    EnterCriticalSection(&g_overlay_lock);
+    g_overlay_request = text;
+    LeaveCriticalSection(&g_overlay_lock);
+    SetEvent(g_overlay_wake);
+}
+
+static DWORD WINAPI overlay_thread(LPVOID) {
+    if (!create_overlay_window()) return 0;
+    for (;;) {
+        const DWORD woke = MsgWaitForMultipleObjects(1, &g_overlay_wake, FALSE, 100, QS_ALLINPUT);
+        MSG msg;
+        while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        if (woke == WAIT_TIMEOUT) {
+            // The game window is borderless/always-on-top too; keep the overlay above it.
+            if (g_overlay_visible) {
+                const bool in_frame = frame_overlay::ready();
+                const bool shown = IsWindowVisible(g_overlay_hwnd) != FALSE;
+                if (in_frame && shown) {
+                    ShowWindow(g_overlay_hwnd, SW_HIDE);
+                } else if (!in_frame && !shown) {
+                    // The game stopped presenting through the swap chain (loading, video): bring the window path back.
+                    EnterCriticalSection(&g_overlay_lock);
+                    const std::wstring again = g_overlay_request;
+                    LeaveCriticalSection(&g_overlay_lock);
+                    g_last_subtitle_text.clear();
+                    render_overlay_now(again);
+                } else if (!in_frame) {
+                    SetWindowPos(g_overlay_hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                }
+            }
+            continue;
+        }
+        if (woke != WAIT_OBJECT_0) continue;
+        EnterCriticalSection(&g_overlay_lock);
+        const std::wstring text = g_overlay_request;
+        LeaveCriticalSection(&g_overlay_lock);
+        render_overlay_now(text);
+    }
 }
 
 static bool load_captions() {
@@ -719,6 +859,12 @@ static std::vector<std::string> wrap(const std::string& text) {
     return result;
 }
 
+#include "load_profiler.h"
+#include "startup_profiler.h"
+#include "frame_capture.h"
+#include "speakers.h"
+
+static int s_play_id_last = -1;
 static void __cdecl subtitle_flush() {
     static int previous = -1;
     static ULONGLONG elapsed, previous_tick;
@@ -729,8 +875,20 @@ static void __cdecl subtitle_flush() {
     const ULONGLONG delta = now - previous_tick;
     previous_tick = now;
 
-    HWND fg = GetForegroundWindow();
-    ensure_overlay_window(fg);
+    profile_note_flush();
+    ensure_overlay_window(nullptr);
+
+    {
+        static ULONGLONG s_prev_flush = 0;
+        static int s_gaps_logged = 0;
+        if (s_prev_flush && delta >= 100 && s_gaps_logged < 12) {
+            ++s_gaps_logged;
+            char msg[96];
+            sprintf_s(msg, "Frame gap %llu ms (map=%d overlay=%d)", delta, g_map_visible ? 1 : 0, g_overlay_visible ? 1 : 0);
+            log_line(msg);
+        }
+        s_prev_flush = now;
+    }
 
     const bool has_u_cap = has_unicode_captions && id >= 0 && id < 479 && !unicode_captions[id].text.empty();
     const bool active = state >= 2 && state <= 4 && id >= 0 && id < 479 && (has_u_cap || !captions[id].empty());
@@ -740,19 +898,39 @@ static void __cdecl subtitle_flush() {
             previous = id;
             elapsed = 0;
             if (!has_u_cap) lines = wrap(captions[id]);
-            char message[80];
-            sprintf_s(message, "voice=%d state=%d subtitle-start%s", id, state, has_u_cap ? " (vector-unicode)" : "");
+            char message[120];
+            sprintf_s(message, "voice=%d state=%d subtitle-start%s speaker=%ls", id, state, has_u_cap ? " (vector-unicode)" : "",
+                      kSpeakerLabels[kSpeakerOfVoice[id]]);
             log_line(message);
         }
         const int channel = *reinterpret_cast<int*>(base + 0x857fdc);
+        static ULONGLONG s_play_start = 0;
+        static bool s_play_logged = false;
         if (!is_playing(channel)) {
+            if (s_play_start && !s_play_logged) {
+                s_play_logged = true;
+                char timing[120];
+                sprintf_s(timing, "voice=%d audio stopped after %llu ms real (subtitle clock %llu ms)", id, now - s_play_start, elapsed);
+                log_line(timing);
+            }
             if (g_overlay_available) render_vector_subtitle(L"");
             original_flush();
             return;
         }
+        if (id != s_play_id_last || !s_play_start) { s_play_start = now; s_play_logged = false; s_play_id_last = id; }
         elapsed += std::min<ULONGLONG>(delta, 250);
         const DWORD bytes = *reinterpret_cast<DWORD*>(base + 0xfd814 + id * 8);
         const ULONGLONG duration = durations[id] ? durations[id] : std::max<ULONGLONG>(1, bytes * 1000ULL / 44100);
+        {
+            static int s_logged_id = -1;
+            if (s_logged_id != id) {
+                s_logged_id = id;
+                char timing[140];
+                sprintf_s(timing, "voice=%d playing: caption %llu ms, sample %llu ms (%lu bytes)", id, durations[id],
+                          bytes * 1000ULL / 44100, static_cast<unsigned long>(bytes));
+                log_line(timing);
+            }
+        }
         if (elapsed > duration + 150) {
             if (g_overlay_available) render_vector_subtitle(L"");
             original_flush();
@@ -780,20 +958,33 @@ static void __cdecl subtitle_flush() {
                 }
             }
 
+            if (!current_text.empty() && kSpeakerOfVoice[id]) current_text = std::wstring(kSpeakerLabels[kSpeakerOfVoice[id]]) + L": " + current_text;
             render_vector_subtitle(current_text);
             original_flush();
             return;
         }
 
     } else {
+        {
+            // Menu screens have no player instance; require ~1 s of it so loading blips do not flash the hint.
+            static int s_menu_frames = 0;
+            const bool menu_now = *reinterpret_cast<void**>(base + 0x866d4c) == nullptr;
+            s_menu_frames = menu_now ? std::min(s_menu_frames + 1, 100000) : 0;
+            const bool want_hint = s_menu_frames > 60;
+            if (want_hint != g_menu_hint.load()) {
+                g_menu_hint = want_hint;
+                log_line(want_hint ? "Menu hint shown (no player in scene)" : "Menu hint hidden");
+                if (g_overlay_available) render_vector_subtitle(L"");
+            }
+        }
         if (g_overlay_available) {
             static ULONGLONG s_last_map_draw = 0;
-            if (g_map_visible) {
+            if (modal_open()) {
                 if (now - s_last_map_draw >= 33) {
                     s_last_map_draw = now;
                     render_vector_subtitle(L"");
                 }
-            } else if (previous != -1) {
+            } else if (!g_test_subtitle_active && (previous != -1 || g_overlay_visible)) {
                 render_vector_subtitle(L"");
             }
         }
@@ -827,7 +1018,7 @@ static bool install_hook() {
     FlushInstructionCache(GetCurrentProcess(), target, 6);
     FlushInstructionCache(GetCurrentProcess(), trampoline, 11);
 
-    log_line("Vector TrueType HD subtitle pipeline hooked; native engine menu font preserved");
+    log_line("Vector TrueType HD subtitle pipeline hooked; native engine menu bitmaps preserved");
     return true;
 }
 
@@ -862,13 +1053,16 @@ static bool install_60fps_patches() {
     return ok;
 }
 
+#include "startup_patches.h"
+#include "window_trace.h"
+#include "exception_trace.h"
+#include "prefetch.h"
+
+static bool g_hd_textures_active = false;
+#include "hd_textures.h"
 static bool install_hd_textures_hook() {
-    if (base != 0x400000) return false;
-    const unsigned char exp_surf[] = {0xb8, 0x00, 0x01, 0x00, 0x00};
-    const unsigned char pat_surf[] = {0xb8, 0x00, 0x04, 0x00, 0x00};
-    patch_memory_bytes(base + 0x72c21, exp_surf, pat_surf, sizeof(exp_surf));
-    patch_memory_bytes(base + 0x72d31, exp_surf, pat_surf, sizeof(exp_surf));
-    return true;
+    g_hd_textures_active = install_hd_textures_real();
+    return base == 0x400000;
 }
 
 // DualSense Native Integration:
@@ -882,6 +1076,7 @@ static bool install_hd_textures_hook() {
 
 static LPDIRECTINPUTA g_pDirectInput = nullptr;
 static LPDIRECTINPUTDEVICE2A g_dualsense_device = nullptr;
+#include "fmv_trace.h"
 static ULONGLONG g_next_dualsense_search = 0;
 static bool g_prev_start_pressed = false;
 static void (__cdecl* original_UpdateInput)() = nullptr;
@@ -944,7 +1139,7 @@ static HANDLE open_dualsense_hid() {
     return INVALID_HANDLE_VALUE;
 }
 
-static void send_dualsense_output(unsigned char r, unsigned char g, unsigned char b, unsigned char rumble_l, unsigned char rumble_r) {
+static void write_dualsense_output(unsigned char r, unsigned char g, unsigned char b, unsigned char rumble_l, unsigned char rumble_r) {
     HANDLE h = open_dualsense_hid();
     if (h == INVALID_HANDLE_VALUE) return;
 
@@ -959,10 +1154,55 @@ static void send_dualsense_output(unsigned char r, unsigned char g, unsigned cha
     report[11] = b;       // Lightbar Blue
 
     DWORD written = 0;
-    if (!WriteFile(h, report, sizeof(report), &written, nullptr)) {
+    const BOOL ok = WriteFile(h, report, sizeof(report), &written, nullptr);
+    static volatile LONG s_rumble_logged = 0, s_fail_logged = 0;
+    if ((rumble_l || rumble_r) && InterlockedIncrement(&s_rumble_logged) <= 6) {
+        char line[120];
+        sprintf_s(line, "DualSense rumble write L=%u R=%u -> %s (bytes=%lu err=%lu)", rumble_l, rumble_r, ok ? "ok" : "FAILED",
+                  written, ok ? 0ul : GetLastError());
+        log_line(line);
+    } else if (!ok && InterlockedIncrement(&s_fail_logged) <= 3) {
+        char line[96];
+        sprintf_s(line, "DualSense HID write failed (err=%lu)", GetLastError());
+        log_line(line);
+    }
+    if (!ok) {
         CloseHandle(g_hDualSenseHID);
         g_hDualSenseHID = INVALID_HANDLE_VALUE;
     }
+}
+
+// HID enumeration and WriteFile can block for milliseconds to seconds, so they run off the game thread.
+static std::atomic<unsigned long long> g_hid_request{0};
+static HANDLE g_hid_wake = nullptr;
+static std::atomic<bool> g_hid_started{false};
+
+static DWORD WINAPI hid_thread(LPVOID) {
+    ULONGLONG next_retry = 0;
+    for (;;) {
+        WaitForSingleObject(g_hid_wake, 250); // heartbeat keeps the lightbar after controller resets
+        const ULONGLONG now = GetTickCount64();
+        if (now < next_retry) continue;
+        const unsigned long long req = g_hid_request.load();
+        write_dualsense_output(static_cast<unsigned char>(req), static_cast<unsigned char>(req >> 8),
+                               static_cast<unsigned char>(req >> 16), static_cast<unsigned char>(req >> 24),
+                               static_cast<unsigned char>(req >> 32));
+        if (g_hDualSenseHID == INVALID_HANDLE_VALUE) next_retry = now + 3000;
+    }
+}
+
+static void send_dualsense_output(unsigned char r, unsigned char g, unsigned char b, unsigned char rumble_l, unsigned char rumble_r) {
+    const unsigned long long packed = static_cast<unsigned long long>(r) | (static_cast<unsigned long long>(g) << 8) |
+                                      (static_cast<unsigned long long>(b) << 16) |
+                                      (static_cast<unsigned long long>(rumble_l) << 24) |
+                                      (static_cast<unsigned long long>(rumble_r) << 32);
+    const unsigned long long previous = g_hid_request.exchange(packed);
+    if (!g_hid_started.exchange(true)) {
+        g_hid_wake = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+        HANDLE thread = g_hid_wake ? CreateThread(nullptr, 0, hid_thread, nullptr, 0, nullptr) : nullptr;
+        if (thread) CloseHandle(thread);
+    }
+    if (previous != packed && g_hid_wake) SetEvent(g_hid_wake);
 }
 
 static void update_haptics() {
@@ -1035,11 +1275,6 @@ static void poll_dualsense_and_inject() {
 
     if (!g_dualsense_device) return;
 
-    HWND fg = GetForegroundWindow();
-    DWORD fg_pid = 0;
-    if (fg) GetWindowThreadProcessId(fg, &fg_pid);
-    if (fg_pid != 0 && fg_pid != GetCurrentProcessId()) return;
-
     g_dualsense_device->Poll();
     DIJOYSTATE js{};
     HRESULT hr = g_dualsense_device->GetDeviceState(sizeof(DIJOYSTATE), &js);
@@ -1052,6 +1287,19 @@ static void poll_dualsense_and_inject() {
         g_dualsense_device = nullptr;
         log_line("DualSense controller disconnected");
         return;
+    }
+
+    {   // One-off diagnostic: raw axes tell which DirectInput axis is the right stick and which are the triggers.
+        static ULONGLONG s_next_axes_log = 0;
+        static int s_axes_logged = 0;
+        const ULONGLONG axes_now = GetTickCount64();
+        if (s_axes_logged < 4 && axes_now >= s_next_axes_log) {
+            s_next_axes_log = axes_now + 3000;
+            ++s_axes_logged;
+            char line[140];
+            sprintf_s(line, "DualSense axes lX=%ld lY=%ld lZ=%ld lRx=%ld lRy=%ld lRz=%ld", js.lX, js.lY, js.lZ, js.lRx, js.lRy, js.lRz);
+            log_line(line);
+        }
     }
 
     constexpr LONG kCenter = 32768;
@@ -1075,13 +1323,29 @@ static void poll_dualsense_and_inject() {
     const bool move_left  = stick_left  || dpad_left;
     const bool move_right = stick_right || dpad_right;
 
-    LONG v_axis = 0;
-    if (abs(js.lRz - kCenter) > kDeadzone) v_axis = js.lRz - kCenter;
-    else if (abs(js.lRy - kCenter) > kDeadzone) v_axis = js.lRy - kCenter;
-    else if (abs(js.lRx - kCenter) > kDeadzone) v_axis = js.lRx - kCenter;
+    // Right stick: lZ = X, lRz = Y. lRx/lRy are the analog triggers (rest value 0), never camera axes.
+    const auto stick_unit = [&](LONG raw) -> double { // -1..1 after the dead zone, 0 inside it
+        const LONG offset = raw - kCenter;
+        if (std::abs(offset) <= kDeadzone) return 0.0;
+        const double scaled = (std::abs(offset) - kDeadzone) / static_cast<double>(kCenter - kDeadzone);
+        return std::min(1.0, scaled) * (offset < 0 ? -1.0 : 1.0);
+    };
+    const double cam_x = stick_unit(js.lZ);
+    const double cam_y = stick_unit(js.lRz);
+    const LONG v_axis = static_cast<LONG>(cam_y * 32768.0);
 
-    const bool cam_left  = (js.lZ < kCenter - kDeadzone);
-    const bool cam_right = (js.lZ > kCenter + kDeadzone);
+    // The engine only orbits at one fixed speed (L2/R2), so deflection sets how often those presses fire.
+    static double s_orbit_accum = 0.0;
+    bool cam_left = false, cam_right = false;
+    if (cam_x != 0.0) {
+        s_orbit_accum += std::fabs(cam_x) * std::fabs(cam_x);
+        if (s_orbit_accum >= 1.0) {
+            s_orbit_accum -= 1.0;
+            (cam_x < 0 ? cam_left : cam_right) = true;
+        }
+    } else {
+        s_orbit_accum = 0.0;
+    }
 
     auto btn = [&](int idx) -> bool {
         return (idx >= 0 && idx < 32) && ((js.rgbButtons[idx] & 0x80) != 0);
@@ -1098,19 +1362,36 @@ static void poll_dualsense_and_inject() {
     const bool btn_r2       = btn(7) || cam_left  || btn_r3;  // Stick left -> camera looks left (in-game R2 orbit)
     const bool btn_select   = btn(8);
     const bool btn_start    = btn(9) || btn(12);
-    const bool btn_touchpad = btn(13) || ((GetAsyncKeyState('M') & 0x8000) != 0);
+    const bool btn_touchpad = btn(13) || btn_select;
 
-    static bool s_prev_touchpad = false;
-    if (btn_touchpad && !s_prev_touchpad) {
+    static bool s_prev_ds_map = false;
+    {   // Settings panel by pad: Create opens/closes it on menu screens, D-pad moves, cross saves, circle closes.
+        static bool p_up = false, p_down = false, p_left = false, p_right = false, p_cross = false, p_circle = false, p_create = false;
+        auto edge = [](bool now, bool& prev) { const bool e = now && !prev; prev = now; return e; };
+        const bool fg = game_is_foreground();
+        const bool e_up = edge(dpad_up, p_up), e_down = edge(dpad_down, p_down), e_left = edge(dpad_left, p_left);
+        const bool e_right = edge(dpad_right, p_right), e_cross = edge(btn_cross, p_cross), e_circle = edge(btn_circle, p_circle);
+        const bool e_create = edge(btn_select, p_create);
+        if (fg && g_settings_visible) {
+            settings::g_pad_nav = {e_up, e_down, e_left, e_right, e_cross, e_circle, e_create};
+        } else if (fg && g_menu_hint && e_create) {
+            settings::g_pad_nav.toggle = true;
+        }
+    }
+    if (!game_is_foreground()) {
+        // edge state still updates below, so a button held while refocusing does not toggle
+    } else if (g_menu_hint || g_settings_visible) {
+        // Create belongs to the settings panel on menu screens; the map only makes sense in the world
+    } else if (btn_touchpad && !s_prev_ds_map) {
         g_map_visible = !g_map_visible;
         log_line(g_map_visible ? "Nosgoth Exploration Map opened" : "Nosgoth Exploration Map closed");
         render_vector_subtitle(L"");
-    } else if (g_map_visible && (btn_circle || ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0))) {
+    } else if (g_map_visible && btn_circle) {
         g_map_visible = false;
         render_vector_subtitle(L"");
         log_line("Nosgoth Exploration Map closed");
     }
-    s_prev_touchpad = btn_touchpad;
+    s_prev_ds_map = btn_touchpad;
 
     bool final_move_up   = move_up;
     bool final_move_down = move_down;
@@ -1121,7 +1402,7 @@ static void poll_dualsense_and_inject() {
     bool act_tr = btn_triangle;
     bool act_circle = btn_circle;
 
-    if (g_map_visible) {
+    if (g_map_visible || g_settings_visible) {
         final_move_up = false;
         final_move_down = false;
         act_move_left = false;
@@ -1137,12 +1418,13 @@ static void poll_dualsense_and_inject() {
     LONG stick_dy = js.lY - kCenter;
     double stick_dist = sqrt(static_cast<double>(stick_dx * stick_dx + stick_dy * stick_dy));
 
-    if (base == 0x400000 && !g_map_visible) {
+    if (base == 0x400000 && !g_map_visible && !g_settings_visible) {
         if (btn_r3) {
             safe_adjust_camera_pitch(0, true);
         } else if (v_axis != 0) {
-            short step = static_cast<short>(-(v_axis / 2500));
-            safe_adjust_camera_pitch(step, false);
+            const double eased = cam_y * std::fabs(cam_y); // fine control near the center
+            const short step = static_cast<short>(std::lround(-eased * 26.0));
+            if (step != 0) safe_adjust_camera_pitch(step, false);
         }
 
         auto* cam = reinterpret_cast<unsigned char*>(base + 0x864560);
@@ -1171,7 +1453,6 @@ static void poll_dualsense_and_inject() {
         pad1_ptr[1] = 0x41;
         uint16_t& buttons = *reinterpret_cast<uint16_t*>(pad1_ptr + 2);
 
-        if (btn_select)   buttons &= ~0x0001;
         if (btn_start)    buttons &= ~0x0008;
         if (final_move_up)   buttons &= ~0x0010;
         if (act_move_right)  buttons &= ~0x0020;
@@ -1190,7 +1471,6 @@ static void poll_dualsense_and_inject() {
     auto pad0_ptr = reinterpret_cast<unsigned char*>(base + 0x860f60);
     if (pad0_ptr) {
         uint16_t& buttons0 = *reinterpret_cast<uint16_t*>(pad0_ptr + 2);
-        if (btn_select)   buttons0 &= ~0x0001;
         if (btn_start)    buttons0 &= ~0x0008;
         if (final_move_up)   buttons0 &= ~0x0010;
         if (act_move_right)  buttons0 &= ~0x0020;
@@ -1221,41 +1501,9 @@ static void poll_dualsense_and_inject() {
         if (btn_l2)          kbd[0x52] |= 0x80;
         if (btn_r2)          kbd[0x9d] |= 0x80;
         if (btn_start)       kbd[0x01] |= 0x80;
-        if (btn_select)      kbd[0x1c] |= 0x80;
     }
 
-    HWND target_wnd = fg ? fg : GetActiveWindow();
-    static bool s_icon_set = false;
-    if (!s_icon_set && target_wnd) {
-        wchar_t icon_path[MAX_PATH];
-        swprintf_s(icon_path, L"%ssoul-reaver.ico", directory().c_str());
-        HICON hIcon = (HICON)LoadImageW(nullptr, icon_path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
-        if (hIcon) {
-            SendMessageW(target_wnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
-            SendMessageW(target_wnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
-            SetClassLongPtrW(target_wnd, GCLP_HICON, (LONG_PTR)hIcon);
-            SetClassLongPtrW(target_wnd, GCLP_HICONSM, (LONG_PTR)hIcon);
-            s_icon_set = true;
-            log_line("High-resolution window icon applied");
-        }
-    }
-
-    static bool s_borderless_set = false;
-    if (!s_borderless_set && target_wnd) {
-        int screen_w = GetSystemMetrics(SM_CXSCREEN);
-        int screen_h = GetSystemMetrics(SM_CYSCREEN);
-        LONG_PTR style = GetWindowLongPtrW(target_wnd, GWL_STYLE);
-        style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU);
-        style |= WS_POPUP;
-        SetWindowLongPtrW(target_wnd, GWL_STYLE, style);
-        LONG_PTR ex_style = GetWindowLongPtrW(target_wnd, GWL_EXSTYLE);
-        ex_style &= ~WS_EX_TOPMOST;
-        SetWindowLongPtrW(target_wnd, GWL_EXSTYLE, ex_style);
-        SetWindowPos(target_wnd, HWND_NOTOPMOST, 0, 0, screen_w, screen_h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-        s_borderless_set = true;
-        log_line("Borderless windowed mode applied");
-    }
-
+    HWND target_wnd = get_game_hwnd();
     if (btn_start && !g_prev_start_pressed) {
         *reinterpret_cast<DWORD*>(base + 0x8542f4) = 1;
         if (target_wnd) PostMessageA(target_wnd, WM_KEYDOWN, VK_ESCAPE, 0x00010001);
@@ -1264,16 +1512,13 @@ static void poll_dualsense_and_inject() {
     }
     g_prev_start_pressed = btn_start;
 
-    if (btn_cross || btn_select) {
+    if (act_cr) {
         if (target_wnd) PostMessageA(target_wnd, WM_KEYDOWN, VK_SPACE, 0x00390001);
     }
 
-    static bool prev_sq = false, prev_cr = false, prev_tr = false, prev_r3 = false;
-    if (btn_cross && !prev_cr)  trigger_rumble(0x4000, 0x8000, 90); // Jump
-    prev_sq = btn_square;
+    static bool prev_cr = false;
+    if (btn_cross && !prev_cr && !g_map_visible && game_is_foreground()) trigger_rumble(0x4000, 0x8000, 90); // Jump
     prev_cr = btn_cross;
-    prev_tr = btn_triangle;
-    prev_r3 = btn_r3;
 
     update_haptics();
 }
@@ -1303,6 +1548,136 @@ static void __cdecl hook_UpdateInput() {
             }
         }
     }
+
+    static int s_hook_frames = 0;
+    ++s_hook_frames;
+    HWND game_wnd = get_game_hwnd();
+    if (game_wnd && s_hook_frames > 60) {
+        static HWND s_styled_wnd = nullptr;
+        if (s_styled_wnd != game_wnd) {
+            s_styled_wnd = game_wnd;
+            wchar_t icon_path[MAX_PATH];
+            swprintf_s(icon_path, L"%ssoul-reaver.ico", directory().c_str());
+            HICON hIcon = (HICON)LoadImageW(nullptr, icon_path, IMAGE_ICON, 0, 0, LR_LOADFROMFILE | LR_DEFAULTSIZE);
+            if (hIcon) {
+                SendMessageW(game_wnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+                SendMessageW(game_wnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+                SetClassLongPtrW(game_wnd, GCLP_HICON, (LONG_PTR)hIcon);
+                SetClassLongPtrW(game_wnd, GCLP_HICONSM, (LONG_PTR)hIcon);
+                log_line("High-resolution window icon applied");
+            }
+
+            log_line("Borderless windowed mode active via dgVoodoo2");
+            install_window_trace(game_wnd);
+        }
+    }
+
+    keep_window_trace_outermost();
+
+    // Keyboard map toggle ('M', only while the game is focused) & smoke-test map flag
+    const bool in_focus = game_is_foreground();
+    const bool kbd_map = in_focus && ((GetAsyncKeyState('M') & 0x8000) != 0);
+    static bool s_prev_kbd_map = false;
+    const std::wstring map_flag = directory() + L".soul-reaver-ptbr\\toggle-map.flag";
+    const bool has_map_flag = (GetFileAttributesW(map_flag.c_str()) != INVALID_FILE_ATTRIBUTES);
+    if (has_map_flag) DeleteFileW(map_flag.c_str());
+
+    if ((kbd_map && !s_prev_kbd_map) || has_map_flag) {
+        g_map_visible = !g_map_visible;
+        log_line(g_map_visible ? "Nosgoth Exploration Map opened" : "Nosgoth Exploration Map closed");
+        render_vector_subtitle(L"");
+    } else if (g_map_visible && in_focus && ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0)) {
+        g_map_visible = false;
+        render_vector_subtitle(L"");
+        log_line("Nosgoth Exploration Map closed");
+    }
+    s_prev_kbd_map = kbd_map;
+
+    {   // Smoke-test aid: test-padnav.flag replays Create, right, cross, circle through the pad navigation path once.
+        static int s_step = -1;
+        static ULONGLONG s_next = 0;
+        const ULONGLONG tick = GetTickCount64();
+        const std::wstring nav_flag = directory() + L".soul-reaver-ptbr/test-padnav.flag";
+        if (s_step < 0 && GetFileAttributesW(nav_flag.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            DeleteFileW(nav_flag.c_str());
+            s_step = 0;
+            s_next = tick;
+        }
+        if (s_step >= 0 && tick >= s_next) {
+            settings::PadNav nav{};
+            if (s_step == 0) nav.toggle = true;
+            else if (s_step == 1) nav.right = true;
+            else if (s_step == 2) nav.confirm = true;
+            else if (s_step == 3) nav.back = true;
+            settings::g_pad_nav = nav;
+            log_line("Pad navigation test step");
+            s_next = tick + 700;
+            if (++s_step > 3) s_step = -1;
+        }
+    }
+
+    const bool settings_owns_keys = settings::poll_keys(in_focus, g_settings_visible);
+    if (settings_owns_keys) {
+        g_map_visible = false;
+        memset(reinterpret_cast<void*>(base + 0x866900), 0, 256); // keep arrows/Enter away from the game
+    }
+
+    // Smoke-test aid: while test-subtitle.flag exists, show a sample subtitle through the normal overlay path.
+    {
+        static ULONGLONG s_last_test_check = 0;
+        static bool s_test_subtitle_on = false;
+        const ULONGLONG tick = GetTickCount64();
+        if (tick - s_last_test_check >= 250) {
+            s_last_test_check = tick;
+            const std::wstring flag = directory() + L".soul-reaver-ptbr\\test-subtitle.flag";
+            const bool want = GetFileAttributesW(flag.c_str()) != INVALID_FILE_ATTRIBUTES;
+            if (want) render_vector_subtitle(L"Conheço você, Raziel. É digno.");
+            else if (s_test_subtitle_on) render_vector_subtitle(L"");
+            s_test_subtitle_on = want;
+            g_test_subtitle_active = want;
+        }
+    }
+
+    {   // Smoke-test aid: test-rumble.flag fires one soul-absorb pulse and is consumed.
+        const std::wstring rumble_flag = directory() + L".soul-reaver-ptbr/test-rumble.flag";
+        if (GetFileAttributesW(rumble_flag.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            DeleteFileW(rumble_flag.c_str());
+            trigger_rumble(0x6000, 0xd000, 400);
+        }
+    }
+
+    {   // Smoke-test aid: test-camera.flag nudges the camera pitch down by 100 like a right-stick push and logs the tilt.
+        static ULONGLONG s_camera_check_at = 0;
+        static short s_tilt_before = 0;
+        const auto read_tilt = []() -> short {
+            short value = 0;
+            __try { value = *reinterpret_cast<short*>(base + 0x864560 + 0xFE); } __except (EXCEPTION_EXECUTE_HANDLER) {}
+            return value;
+        };
+        const std::wstring camera_flag = directory() + L".soul-reaver-ptbr/test-camera.flag";
+        if (GetFileAttributesW(camera_flag.c_str()) != INVALID_FILE_ATTRIBUTES) {
+            DeleteFileW(camera_flag.c_str());
+            s_tilt_before = read_tilt();
+            safe_adjust_camera_pitch(-100, false);
+            s_camera_check_at = GetTickCount64() + 600;
+            char line[96];
+            sprintf_s(line, "Camera test: tilt %d -> %d right after push", s_tilt_before, read_tilt());
+            log_line(line);
+        } else if (s_camera_check_at && GetTickCount64() >= s_camera_check_at) {
+            s_camera_check_at = 0;
+            char line[96];
+            sprintf_s(line, "Camera test: tilt %d 600 ms later (before=%d)", read_tilt(), s_tilt_before);
+            log_line(line);
+        }
+    }
+
+    static bool s_prev_space = false;
+    const bool space_down = (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
+    if (space_down && !s_prev_space && !g_map_visible && game_is_foreground()) {
+        trigger_rumble(0x4000, 0x8000, 90); // Jump (global key state: never react to typing in other apps)
+    }
+    s_prev_space = space_down;
+
     poll_dualsense_and_inject();
 
     // DualSense Dynamic Lightbar & Haptics: Soul Absorption (Emerald Green), Realm & Health
@@ -1373,7 +1748,8 @@ static bool install_engine_optimizations() {
     if (base != 0x400000) return false;
 
     // Multicore CPU Affinity lock to Core 0 (prevents timing desync, audio stutter and multithread crashes)
-    SetProcessAffinityMask(GetCurrentProcess(), 1);
+    // Only the game thread is pinned; overlay/HID worker threads must run on other cores.
+    SetThreadAffinityMask(GetCurrentThread(), 1);
 
     // Expand default fog distance (Far=22000, Near=20000) to double draw distance and eliminate pop-in
     DWORD old_p;
@@ -1385,16 +1761,8 @@ static bool install_engine_optimizations() {
         VirtualProtect(fog_far, sizeof(uint32_t) * 2, old_p, &old_p);
     }
 
-    // Expand audio streaming ring buffer from 16 KB to 64 KB to eliminate stutters/clicks during room streaming
-    const unsigned char exp_audio_block[] = { 0x68, 0x00, 0x10, 0x00, 0x00 };
-    const unsigned char pat_audio_block[] = { 0x68, 0x00, 0x40, 0x00, 0x00 };
-    const unsigned char exp_audio_total[] = { 0x68, 0x00, 0x40, 0x00, 0x00 };
-    const unsigned char pat_audio_total[] = { 0x68, 0x00, 0x00, 0x01, 0x00 };
-
-    if (patch_memory_bytes(base + 0x7da4a, exp_audio_block, pat_audio_block, sizeof(exp_audio_block)) &&
-        patch_memory_bytes(base + 0x7da7d, exp_audio_total, pat_audio_total, sizeof(exp_audio_total))) {
-        log_line("Audio streaming ring buffer expanded to 64 KB (zero room transition stutter)");
-    }
+    // The former 0x47DA4A/0x47DA7D "audio ring buffer" patch was removed: both sites live in the FMV player
+    // (0x47D920), not room streaming, and a 64 KB movie sound buffer can delay cutscene audio against video.
 
     // Restore Spectral Realm Vertex Mesh Morphing (GTE Per-Vertex Sine Distortion)
     const unsigned char exp_morph_jump[] = { 0x74, 0x31 };
@@ -1432,7 +1800,18 @@ static BOOL CALLBACK initialize(PINIT_ONCE, PVOID, PVOID*) {
         log_line(install_hook() ? "Experimental subtitle hook active" : "Hook guard failed; subtitles disabled");
     }
     log_line(install_60fps_patches() ? "60 FPS patches active" : "60 FPS patch guard failed");
-    log_line(install_hd_textures_hook() ? "HD texture 1024x1024 hook active" : "HD texture hook guard failed");
+    AddVectoredExceptionHandler(1, trace_exception);
+    start_startup_profiler();
+    start_frame_capture();
+    start_archive_prefetch();
+    install_area_trace();
+    install_fmv_trace();
+    settings::load();
+    log_line(settings::install_registry_override() ? "Settings override hook active (ScreenWidth/ScreenHeight)" : "Settings override hook guard failed");
+    log_line(install_single_intro_patch() ? "Single intro patch active (publisher logo only)" : "Single intro patch guard failed");
+    if (install_skip_setup_dialog_patch()) log_line("Launcher setup dialog auto-confirmed (saved setup reused)");
+    log_line(install_hd_textures_hook() ? (g_hd_textures_active ? "HD textures: 1024x1024 pages active (hd-textures/page-NNNN.raw)" : "HD textures: not installed (no hd-textures/page-0000.raw, disable flag, or guard mismatch)")
+                                        : "HD texture hook guard failed");
     log_line(install_engine_optimizations() ? "Engine optimizations active (Affinity + Fog Far 22000)" : "Engine optimizations failed");
     log_line(install_dualsense_hook() ? "DualSense native input hook active" : "DualSense hook guard failed");
     return TRUE;
