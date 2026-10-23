@@ -20,6 +20,7 @@
   <a href="#documentação">Documentação</a>
 </p>
 
+> [!WARNING]
 > **Em desenvolvimento · campanha parcial · ainda não homologado.**
 > O instalador e os pipelines têm validações offline. Cobertura, qualidade das vozes,
 > sincronismo e funcionamento nas cenas do jogo continuam em avaliação.
@@ -52,6 +53,8 @@ moldura nativa e controles próprios.
 </p>
 
 <p align="center"><sub>Interface real do instalador durante a inspeção de arquivos. A captura não representa gameplay.</sub></p>
+
+<!-- TODO(screenshot): painel Controle DualSense (mapa de botões) e etapa de componentes com disponibilidade; capturar do instalador real, sem dados pessoais. -->
 
 1. **Encontre sua cópia.** Detecção da biblioteca Steam ou seleção manual da pasta.
 2. **Escolha os componentes.** Disponibilidade, cobertura e itens experimentais aparecem antes de instalar.
@@ -123,9 +126,9 @@ Consulte a [organização dos módulos](docs/MODULOS.md) antes de preparar uma i
 Na raiz do repositório, com as dependências já disponíveis:
 
 ```powershell
-pnpm --dir installer build
-cargo build --offline --locked --release -p soul-reaver-mod-installer --target-dir target
-& ".\target\release\soul-reaver-mod-installer.exe"
+pnpm --dir installer build                                                                # frontend (tsc + vite build), embutido na build
+cargo build --offline --locked --release -p soul-reaver-mod-installer --target-dir target  # instalador, com dependências em cache
+& ".\target\release\soul-reaver-mod-installer.exe"                                         # abre o instalador
 ```
 
 A build incorpora a interface ao executável. Após alterar o frontend, compile-o
@@ -134,7 +137,7 @@ antes de recompilar o backend Rust.
 ### Verificar o core
 
 ```powershell
-cargo test --offline --locked -p soul-reaver-mod-core -p soul-reaver-mod-installer
+cargo test --offline --locked -p soul-reaver-mod-core -p soul-reaver-mod-installer  # testes do core e do instalador, com fixtures isoladas
 ```
 
 Os testes usam fixtures isoladas. Eles não substituem a validação da campanha.
@@ -175,6 +178,16 @@ Cada componente tem seu próprio registro de propriedade e restauração.
 
 ## Por dentro
 
+```mermaid
+flowchart LR
+    UI["installer/src<br/>React: App.tsx, use-installer.ts"] -->|invoke| TAURI["installer/src-tauri/src/main.rs<br/>comandos Tauri, game_launch.rs, controller.rs"]
+    TAURI --> CORE["crates/mod-core/src/lib.rs<br/>SHA-256, journals, travas"]
+    CLI["crates/mod-core/src/bin/srmod.rs<br/>CLI srmod"] --> CORE
+    CORE -->|"hash, backup, aplicar, restaurar"| GAME[("Pasta do jogo<br/>cópia Steam Classic")]
+    TOOLS["tools/<br/>extração, síntese, empacotamento"] -.->|"payloads"| MODS["modules/ (local, fora do Git)"]
+    MODS -.->|"manifestos"| CORE
+```
+
 | Camada | Stack e responsabilidade |
 | :--- | :--- |
 | [`crates/mod-core/`](crates/mod-core/) | Rust, CLI `srmod`, hashes SHA-256, journals atômicos, travas `fs2` e restauração. |
@@ -185,6 +198,11 @@ Cada componente tem seu próprio registro de propriedade e restauração.
 
 O jogador recebe os pacotes de áudio prontos; não precisa executar o modelo de IA.
 O desenvolvimento e a geração preservam a instalação original e os saves.
+
+## Contribuir
+
+Não há guia de contribuição publicado. O histórico segue Conventional Commits
+(`feat(tools): ...`, `ci: ...`, `docs(references): ...`).
 
 ## Documentação
 
@@ -199,6 +217,10 @@ O desenvolvimento e a geração preservam a instalação original e os saves.
 | [Referências](REFERENCES.md) | Ferramentas, fontes e documentação técnica. |
 
 ---
+
+## Licença
+
+Nenhum arquivo `LICENSE` foi publicado; o repositório ainda não declara licença de código.
 
 Projeto da comunidade, sem afiliação oficial. Este repositório não inclui o jogo,
 seus executáveis, arquivos DAT/BIG/BIK, saves, extrações ou pesos de modelos de IA.
