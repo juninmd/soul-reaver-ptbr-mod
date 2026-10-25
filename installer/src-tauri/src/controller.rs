@@ -152,10 +152,17 @@ pub fn launch(game: &Path) -> Result<Status, String> {
         .spawn()
         .map_err(|e| e.to_string())
         .and_then(|mut process| {
-            std::thread::sleep(std::time::Duration::from_millis(150));
-            match process.try_wait().map_err(|e| e.to_string())? {
-                Some(code) => Err(format!("O acompanhante encerrou na inicialização: {code}")),
-                None => Ok(()),
+            let start = std::time::Instant::now();
+            let timeout = std::time::Duration::from_secs(1);
+            let step = std::time::Duration::from_millis(50);
+            loop {
+                if let Some(code) = process.try_wait().map_err(|e| e.to_string())? {
+                    return Err(format!("O acompanhante encerrou na inicialização: {code}"));
+                }
+                if start.elapsed() >= timeout {
+                    return Ok(());
+                }
+                std::thread::sleep(step);
             }
         });
     if let Err(error) = bridge_result {
