@@ -893,8 +893,14 @@ mod tests {
     fn company_openings_require_known_originals_and_stay_in_video_component() {
         let result = sha(b"new project opening");
         for (file, source) in [
-            ("crylogo.bik", "de25840d0e384908489709b993847ec4b04b4d9806f2538256bc1bb6b50cc402"),
-            ("publogo.bik", "25ca73fa5b7d8794bfba3b607363142ba08fc512ef2452aa302d527fdbfc3cc2"),
+            (
+                "crylogo.bik",
+                "de25840d0e384908489709b993847ec4b04b4d9806f2538256bc1bb6b50cc402",
+            ),
+            (
+                "publogo.bik",
+                "25ca73fa5b7d8794bfba3b607363142ba08fc512ef2452aa302d527fdbfc3cc2",
+            ),
         ] {
             valid_asset(&VIDEO, file, Some(source), &result).unwrap();
             assert!(valid_asset(&VIDEO, file, None, &result).is_err());
@@ -913,13 +919,15 @@ mod tests {
         ] {
             valid_asset(&LOCALIZATION, file, None, &result).unwrap();
         }
-        assert!(valid_asset(
-            &LOCALIZATION,
-            ".soul-reaver-ptbr/unicode/unapproved.dll",
-            None,
-            &result,
-        )
-        .is_err());
+        assert!(
+            valid_asset(
+                &LOCALIZATION,
+                ".soul-reaver-ptbr/unicode/unapproved.dll",
+                None,
+                &result,
+            )
+            .is_err()
+        );
     }
 
     const TEST_VIDEO_CREATED: &[&str] = &["intro.bik"];
