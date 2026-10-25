@@ -189,5 +189,13 @@ export function useInstaller() {
     finally { setControllerAction(null); setLoading(false); lock.current = false; mutation.current = false; }
   }
 
-  return { gamePath, gameInfo, bundle, bundleError, diagnostics, controller, options, setOptions, selectedOptions, loading, listenersReady, controllerAction, launching, canLaunchGame, launchGame, error, notice, operation, progress, message, paused, stopping, controlPending, running, busy, anyInstalled, readyToApply, mutation, inspect, chooseFolder, reloadBundle, refresh, run, togglePause, cancel, runController, setNotice };
+  async function openLogsFolder() {
+    try {
+      await invoke('open_logs_folder');
+    } catch (err) {
+      setNotice(`Não foi possível abrir a pasta de logs: ${String(err)}`);
+    }
+  }
+
+  return { gamePath, gameInfo, bundle, bundleError, diagnostics, controller, options, setOptions, selectedOptions, loading, listenersReady, controllerAction, launching, canLaunchGame, launchGame, error, notice, operation, progress, message, paused, stopping, controlPending, running, busy, anyInstalled, readyToApply, mutation, inspect, chooseFolder, reloadBundle, refresh, run, togglePause, cancel, runController, openLogsFolder, setNotice };
 }

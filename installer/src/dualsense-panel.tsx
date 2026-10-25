@@ -5,6 +5,7 @@ import type { ControllerAction } from './use-installer';
 interface Props {
   gamePath: string; disabled: boolean; status: ControllerStatus | null; action: ControllerAction | null;
   onAction: (action: ControllerAction) => void;
+  onOpenLogs?: () => void;
 }
 function FaceIcon({ shape, label }: { shape: 'triangle' | 'circle' | 'cross' | 'square'; label: string }) {
   const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 2.4, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -28,10 +29,10 @@ const mappings = [
   { shape: null, key: 'Create', action: 'Menu de glifos / confirmar (Enter)' },
   { shape: null, key: 'Options', action: 'Pausar / voltar (Esc)' },
 ];
-export default function DualSensePanel({ gamePath, disabled, status, action, onAction }: Props) {
+export default function DualSensePanel({ gamePath, disabled, status, action, onAction, onOpenLogs }: Props) {
   const busy = disabled || !gamePath;
   return <section className="controller-panel" aria-labelledby="dualsense-title">
-    <div className="section-heading"><h2 id="dualsense-title">Controle DualSense</h2><button className="text-button" disabled={busy} onClick={() => onAction('refresh')}>{action === 'refresh' ? 'Verificando…' : 'Atualizar status'}</button></div>
+    <div className="section-heading"><h2 id="dualsense-title">Controle DualSense</h2><div className="dualsense-heading-actions"><button className="text-button" disabled={busy} onClick={() => onAction('refresh')}>{action === 'refresh' ? 'Verificando…' : 'Atualizar status'}</button>{onOpenLogs && <button className="text-button" onClick={onOpenLogs}>Abrir pasta de logs</button>}</div></div>
     <p className="intro">Suporte ao controle PlayStation 5 nesta instalação do jogo.</p>
     {!gamePath ? <p className="error-message">Selecione a pasta do jogo para verificar o suporte ao controle.</p> : status && <div className="controller-status" aria-live="polite">
       <strong>{status.installed ? 'Suporte habilitado' : 'Suporte não habilitado'}</strong>

@@ -39,6 +39,29 @@ fn install_controller(
 }
 
 #[tauri::command]
+fn open_logs_folder() -> Result<(), String> {
+    let local = std::env::var_os("LOCALAPPDATA").ok_or("LOCALAPPDATA não encontrado")?;
+    let logs = std::path::PathBuf::from(local).join("SoulReaverPTBR/logs");
+    std::fs::create_dir_all(&logs).map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = std::process::Command::new("explorer");
+        cmd.arg(&logs);
+        cmd.creation_flags(0x08000000);
+        cmd.spawn().map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(windows))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&logs)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn remove_controller(
     game_path: String,
     state: tauri::State<'_, OperationState>,
@@ -1013,7 +1036,8 @@ fn main() {
             install_controller,
             remove_controller,
             launch_game,
-            launch_controller_game
+            launch_controller_game,
+            open_logs_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

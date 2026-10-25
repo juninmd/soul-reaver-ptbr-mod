@@ -69,6 +69,7 @@ html { scrollbar-color: #526b5b var(--base); scrollbar-width: thin; }
 .diagnostic-panel, .controller-panel { min-width: 0; }
 .controller-panel { border: 1px solid var(--line); background: var(--surface); padding: 23px; align-self: start; }
 .controller-panel .section-heading { margin: 0 0 10px; gap: 15px; }
+.dualsense-heading-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .controller-status { border-block: 1px solid var(--line); padding: 17px 0; margin: 20px 0; font-size: 11px; display: grid; gap: 7px; }
 .controller-status strong { font-size: 13px; font-weight: 500; }
 .controller-status p { color: var(--muted); line-height: 1.8; }
