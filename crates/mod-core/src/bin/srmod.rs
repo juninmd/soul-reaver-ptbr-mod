@@ -47,8 +47,10 @@ fn main() {
             ));
             return;
         }
-        Some("graphics-apply") if args.len() >= 4 => {
-            let widescreen = args.get(4).map(String::as_str) == Some("widescreen");
+        Some("graphics-apply")
+            if args.len() == 4 || (args.len() == 5 && args[4] == "widescreen") =>
+        {
+            let widescreen = args.len() == 5;
             finish(soul_reaver_mod_core::graphics::apply(
                 Path::new(&args[2]),
                 Path::new(&args[3]),
@@ -118,7 +120,13 @@ fn main() {
 
 fn finish<T: serde::Serialize>(result: Result<T, String>) {
     match result {
-        Ok(value) => println!("{}", serde_json::to_string(&value).unwrap()),
+        Ok(value) => match serde_json::to_string(&value) {
+            Ok(json) => println!("{json}"),
+            Err(error) => {
+                eprintln!("failed to serialize result: {error}");
+                std::process::exit(1);
+            }
+        },
         Err(error) => {
             eprintln!("{error}");
             std::process::exit(1);
