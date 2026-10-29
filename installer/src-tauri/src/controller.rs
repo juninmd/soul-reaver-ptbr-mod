@@ -110,6 +110,7 @@ pub fn remove(game: &Path) -> Result<Status, String> {
 }
 
 pub fn launch(game: &Path) -> Result<Status, String> {
+    let _lock = external::lock(game)?;
     let state = status(game)?;
     if state.running {
         return Err("O jogo já está aberto. Feche-o antes de iniciar com DualSense.".into());
