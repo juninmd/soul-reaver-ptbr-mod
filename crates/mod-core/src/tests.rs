@@ -587,6 +587,81 @@ fn package_payload_hash_mismatch_is_refused_without_mutation() {
     assert!(!game.join(MANAGER).exists());
 }
 
+#[test]
+fn test_synthetic_wait_child_target() {
+    if std::env::var("SRMOD_SYNTHETIC_CHILD").is_err() {
+        return;
+    }
+    let mut buf = [0u8; 1];
+    let _ = std::io::stdin().read(&mut buf);
+}
+
+#[test]
+fn test_is_game_running_synthetic_child() {
+    let dir = tempdir().unwrap();
+    let game = dir.path().join("game");
+    fs::create_dir(&game).unwrap();
+    let current_exe = std::env::current_exe().unwrap();
+    let kain2_path = game.join("kain2.exe");
+    fs::copy(&current_exe, &kain2_path).unwrap();
+
+    assert!(!is_game_running(&game).unwrap());
+
+    let mut child = std::process::Command::new(&kain2_path)
+        .arg("test_synthetic_wait_child_target")
+        .env("SRMOD_SYNTHETIC_CHILD", "1")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+
+    let mut running = false;
+    for _ in 0..20 {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        if is_game_running(&game).unwrap() {
+            running = true;
+            break;
+        }
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(running, "is_game_running should return true when kain2.exe process is active");
+
+    let mut stopped = false;
+    for _ in 0..20 {
+        if !is_game_running(&game).unwrap() {
+            stopped = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(stopped, "is_game_running should return false after process termination");
+}
+
+#[test]
+#[ignore]
+fn bench_is_game_running() {
+    let dir = tempdir().unwrap();
+    let game = dir.path().join("game");
+    fs::create_dir(&game).unwrap();
+    fs::write(game.join("kain2.exe"), b"fake kain2").unwrap();
+
+    let iterations = 20;
+    let start = std::time::Instant::now();
+    for _ in 0..iterations {
+        let _ = is_game_running(&game);
+    }
+    let elapsed = start.elapsed();
+    let avg = elapsed / iterations;
+    println!(
+        "bench_is_game_running: total = {:?}, avg = {:?}",
+        elapsed, avg
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn managed_file_links_and_directory_junctions_are_refused_when_available() {

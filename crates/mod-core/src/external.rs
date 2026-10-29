@@ -203,7 +203,7 @@ fn game_path(game: &Path) -> Result<PathBuf> {
     Ok(game)
 }
 
-fn lock(game: &Path) -> Result<File> {
+pub fn lock(game: &Path) -> Result<File> {
     let root = game.join(MANAGER);
     chain(&root)?;
     if !root.exists() {

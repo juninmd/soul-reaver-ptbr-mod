@@ -23,6 +23,13 @@ desta integração ficam em `validate/96-identidade-implementada/`.
   componentes já aplicados podem permanecer instalados.
 - **Diagnóstico e controle**: estado dos componentes, hash do executável e suporte
   DualSense. Instalação, remoção e abertura do jogo possuem confirmações próprias.
+- **Modos de linha de comando**: o executável do instalador aceita opções CLI para
+  verificação automatizada e diagnósticos (`--controller-status <pasta>`,
+  `--controller-install <pasta>`, `--controller-remove <pasta>`, `--controller-launch <pasta>`,
+  `--help` e `--version`). Em builds release no Windows, o processo anexa ao console pai
+  (`AttachConsole`) para emitir mensagens no terminal em vez de silenciar saídas.
+  `--controller-launch` respeita a trava de operação compartilhada (`operation.lock`)
+  para impedir inicializações enquanto o GUI aplica componentes.
 
 A janela usa `decorations: false`, `shadow: false`, 1240 × 800 como tamanho
 inicial e 860 × 680 como mínimo. A barra possui arraste e controles de minimizar,

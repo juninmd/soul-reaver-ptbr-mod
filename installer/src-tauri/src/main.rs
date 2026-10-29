@@ -23,17 +23,21 @@ async fn launch_game(
 }
 
 #[tauri::command]
-fn get_controller_status(game_path: String) -> Result<controller::Status, String> {
-    controller::status(Path::new(&game_path))
+async fn get_controller_status(game_path: String) -> Result<controller::Status, String> {
+    tauri::async_runtime::spawn_blocking(move || controller::status(Path::new(&game_path)))
+        .await
+        .map_err(|error| format!("Falha na tarefa de status do controle: {error}"))?
 }
 
 #[tauri::command]
-fn install_controller(
+async fn install_controller(
     game_path: String,
     state: tauri::State<'_, OperationState>,
 ) -> Result<controller::Status, String> {
     let control = begin_operation(&state)?;
-    let result = controller::install(Path::new(&game_path));
+    let result = tauri::async_runtime::spawn_blocking(move || controller::install(Path::new(&game_path)))
+        .await
+        .map_err(|error| format!("Falha na tarefa de instalação do controle: {error}"))?;
     finish_operation(&state, &control);
     result
 }
@@ -62,23 +66,27 @@ fn open_logs_folder() -> Result<(), String> {
 }
 
 #[tauri::command]
-fn remove_controller(
+async fn remove_controller(
     game_path: String,
     state: tauri::State<'_, OperationState>,
 ) -> Result<controller::Status, String> {
     let control = begin_operation(&state)?;
-    let result = controller::remove(Path::new(&game_path));
+    let result = tauri::async_runtime::spawn_blocking(move || controller::remove(Path::new(&game_path)))
+        .await
+        .map_err(|error| format!("Falha na tarefa de remoção do controle: {error}"))?;
     finish_operation(&state, &control);
     result
 }
 
 #[tauri::command]
-fn launch_controller_game(
+async fn launch_controller_game(
     game_path: String,
     state: tauri::State<'_, OperationState>,
 ) -> Result<controller::Status, String> {
     let control = begin_operation(&state)?;
-    let result = controller::launch(Path::new(&game_path));
+    let result = tauri::async_runtime::spawn_blocking(move || controller::launch(Path::new(&game_path)))
+        .await
+        .map_err(|error| format!("Falha na tarefa de inicialização com controle: {error}"))?;
     finish_operation(&state, &control);
     result
 }
@@ -363,7 +371,14 @@ struct Diagnostics {
 }
 
 #[tauri::command]
-fn detect_game() -> Option<String> {
+async fn detect_game() -> Option<String> {
+    tauri::async_runtime::spawn_blocking(detect_game_blocking)
+        .await
+        .ok()
+        .flatten()
+}
+
+fn detect_game_blocking() -> Option<String> {
     let steam_paths = [
         r"D:\SteamLibrary\steamapps\common\Legacy of Kain Soul Reaver",
         r"C:\Program Files (x86)\Steam\steamapps\common\Legacy of Kain Soul Reaver",
@@ -388,7 +403,13 @@ async fn inspect_game(path: String) -> Result<GameInfo, String> {
 }
 
 #[tauri::command]
-fn get_default_package_info() -> Result<PackageInfo, String> {
+async fn get_default_package_info() -> Result<PackageInfo, String> {
+    tauri::async_runtime::spawn_blocking(get_default_package_info_blocking)
+        .await
+        .map_err(|error| format!("Falha na tarefa de inspeção do pacote padrão: {error}"))?
+}
+
+fn get_default_package_info_blocking() -> Result<PackageInfo, String> {
     let bundle = find_bundle()?;
     soul_reaver_mod_core::inspect_package(&module_manifest(&bundle, "voices", "manifest.json"))
 }
@@ -804,8 +825,111 @@ fn restore_all_steps_control(
 
 #[cfg(test)]
 mod tests {
-    use super::restore_all_steps;
+    use super::*;
     use std::cell::RefCell;
+
+    #[test]
+    fn test_parse_cli() {
+        let usage = "Uso: --controller-[status|install|remove|launch] <pasta-jogo>".to_string();
+
+        assert_eq!(parse_cli(&[]), CliAction::Gui);
+        assert_eq!(
+            parse_cli(&["app.exe".to_string()]),
+            CliAction::Gui
+        );
+        assert_eq!(
+            parse_cli(&["app.exe".to_string(), "--help".to_string()]),
+            CliAction::Help
+        );
+        assert_eq!(
+            parse_cli(&["app.exe".to_string(), "-h".to_string()]),
+            CliAction::Help
+        );
+        assert_eq!(
+            parse_cli(&["app.exe".to_string(), "--version".to_string()]),
+            CliAction::Help
+        );
+        assert_eq!(
+            parse_cli(&["app.exe".to_string(), "-V".to_string()]),
+            CliAction::Help
+        );
+        assert_eq!(
+            parse_cli(&["app.exe".to_string(), "--controller-foo".to_string(), "game".to_string()]),
+            CliAction::UsageError(usage.clone())
+        );
+        assert_eq!(
+            parse_cli(&["app.exe".to_string(), "--controller-status".to_string()]),
+            CliAction::UsageError(usage.clone())
+        );
+        assert_eq!(
+            parse_cli(&[
+                "app.exe".to_string(),
+                "--controller-status".to_string(),
+                "D:\\Game".to_string()
+            ]),
+            CliAction::ControllerStatus(PathBuf::from("D:\\Game"))
+        );
+        assert_eq!(
+            parse_cli(&[
+                "app.exe".to_string(),
+                "--controller-install".to_string(),
+                "D:\\Game".to_string()
+            ]),
+            CliAction::ControllerInstall(PathBuf::from("D:\\Game"))
+        );
+        assert_eq!(
+            parse_cli(&[
+                "app.exe".to_string(),
+                "--controller-remove".to_string(),
+                "D:\\Game".to_string()
+            ]),
+            CliAction::ControllerRemove(PathBuf::from("D:\\Game"))
+        );
+        assert_eq!(
+            parse_cli(&[
+                "app.exe".to_string(),
+                "--controller-launch".to_string(),
+                "D:\\Game".to_string()
+            ]),
+            CliAction::ControllerLaunch(PathBuf::from("D:\\Game"))
+        );
+        assert_eq!(
+            parse_cli(&["app.exe".to_string(), "--some-other-arg".to_string()]),
+            CliAction::Gui
+        );
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "Requires release binary built with cargo build --release -p soul-reaver-mod-installer"]
+    fn test_release_binary_controller_status_nonexistent_path() {
+        use std::process::Command;
+
+        let exe = std::env::var_os("CARGO_BIN_EXE_soul-reaver-mod-installer")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| {
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("../../target/release/soul-reaver-mod-installer.exe")
+            });
+
+        let output = Command::new(&exe)
+            .args(["--controller-status", r"C:\caminho\inexistente"])
+            .output()
+            .expect("Falha ao executar o binário de release");
+
+        assert_eq!(
+            output.status.code(),
+            Some(1),
+            "Exit code esperado 1, obteve {:?}",
+            output.status.code()
+        );
+
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            !stderr.trim().is_empty(),
+            "stderr não deveria estar vazio no modo release para pasta inexistente"
+        );
+    }
 
     #[test]
     fn restore_reports_every_failure_and_still_attempts_later_components() {
@@ -996,25 +1120,160 @@ fn diagnose_blocking(game_path: String) -> Result<Diagnostics, String> {
     })
 }
 
-fn main() {
-    // Explicit local commands share exactly the same deployment/launch paths as IPC.
-    let args: Vec<String> = std::env::args().collect();
-    if args.get(1).is_some_and(|a| a.starts_with("--controller-")) {
-        let result = match (args.get(1).map(String::as_str), args.get(2)) {
-            (Some("--controller-status"), Some(game)) => controller::status(Path::new(game)),
-            (Some("--controller-install"), Some(game)) => controller::install(Path::new(game)),
-            (Some("--controller-remove"), Some(game)) => controller::remove(Path::new(game)),
-            (Some("--controller-launch"), Some(game)) => controller::launch(Path::new(game)),
-            _ => Err("Uso: --controller-[status|install|remove|launch] <pasta-jogo>".into()),
+#[derive(Debug, PartialEq, Eq)]
+enum CliAction {
+    Gui,
+    Help,
+    ControllerStatus(PathBuf),
+    ControllerInstall(PathBuf),
+    ControllerRemove(PathBuf),
+    ControllerLaunch(PathBuf),
+    UsageError(String),
+}
+
+fn parse_cli(args: &[String]) -> CliAction {
+    if args.len() <= 1 {
+        return CliAction::Gui;
+    }
+
+    if args
+        .iter()
+        .skip(1)
+        .any(|a| a == "--help" || a == "-h" || a == "--version" || a == "-V")
+    {
+        return CliAction::Help;
+    }
+
+    let first = &args[1];
+    if first.starts_with("--controller-") {
+        let usage = "Uso: --controller-[status|install|remove|launch] <pasta-jogo>".to_string();
+        let path = match args.get(2) {
+            Some(p) if !p.is_empty() => PathBuf::from(p),
+            _ => return CliAction::UsageError(usage),
         };
-        match result {
-            Ok(status) => println!("{}", serde_json::to_string(&status).unwrap()),
-            Err(error) => {
-                eprintln!("{error}");
-                std::process::exit(1);
-            }
+
+        match first.as_str() {
+            "--controller-status" => CliAction::ControllerStatus(path),
+            "--controller-install" => CliAction::ControllerInstall(path),
+            "--controller-remove" => CliAction::ControllerRemove(path),
+            "--controller-launch" => CliAction::ControllerLaunch(path),
+            _ => CliAction::UsageError(usage),
         }
-        return;
+    } else {
+        CliAction::Gui
+    }
+}
+
+#[cfg(windows)]
+fn attach_console() {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn AttachConsole(dwProcessId: u32) -> i32;
+    }
+    const ATTACH_PARENT_PROCESS: u32 = 0xFFFFFFFF;
+    unsafe {
+        let _ = AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+}
+
+#[cfg(not(windows))]
+fn attach_console() {}
+
+fn print_cli_help() {
+    println!(
+        "Instalador do Mod Soul Reaver PT-BR\n\n\
+         Uso:\n  \
+           soul-reaver-mod-installer [opções]\n\n\
+         Opções CLI:\n  \
+           --controller-status <pasta-jogo>   Exibe o status do suporte ao DualSense\n  \
+           --controller-install <pasta-jogo>  Instala o acompanhante DualSense\n  \
+           --controller-remove <pasta-jogo>   Remove o acompanhante DualSense\n  \
+           --controller-launch <pasta-jogo>   Inicia o jogo com acompanhante DualSense\n  \
+           --help, -h                         Exibe esta mensagem de ajuda\n  \
+           --version, -V                      Exibe esta mensagem de ajuda"
+    );
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let action = parse_cli(&args);
+    if action != CliAction::Gui {
+        attach_console();
+    }
+    match action {
+        CliAction::Gui => {}
+        CliAction::Help => {
+            print_cli_help();
+            return;
+        }
+        CliAction::UsageError(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+        CliAction::ControllerStatus(game) => {
+            match controller::status(&game) {
+                Ok(status) => match serde_json::to_string(&status) {
+                    Ok(json) => println!("{json}"),
+                    Err(e) => {
+                        eprintln!("Erro ao serializar status: {e}");
+                        std::process::exit(1);
+                    }
+                },
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
+        CliAction::ControllerInstall(game) => {
+            match controller::install(&game) {
+                Ok(status) => match serde_json::to_string(&status) {
+                    Ok(json) => println!("{json}"),
+                    Err(e) => {
+                        eprintln!("Erro ao serializar status: {e}");
+                        std::process::exit(1);
+                    }
+                },
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
+        CliAction::ControllerRemove(game) => {
+            match controller::remove(&game) {
+                Ok(status) => match serde_json::to_string(&status) {
+                    Ok(json) => println!("{json}"),
+                    Err(e) => {
+                        eprintln!("Erro ao serializar status: {e}");
+                        std::process::exit(1);
+                    }
+                },
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
+        CliAction::ControllerLaunch(game) => {
+            match controller::launch(&game) {
+                Ok(status) => match serde_json::to_string(&status) {
+                    Ok(json) => println!("{json}"),
+                    Err(e) => {
+                        eprintln!("Erro ao serializar status: {e}");
+                        std::process::exit(1);
+                    }
+                },
+                Err(error) => {
+                    eprintln!("{error}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
     }
     tauri::Builder::default()
         .manage(OperationState::default())

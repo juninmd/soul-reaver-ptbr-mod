@@ -70,10 +70,11 @@ O self-test verifica mapeamento, zona morta, POV e retorno ao estado neutro com
 dados sintéticos; não envia teclas nem acessa processos. O teste Rust usa o
 executável compatível apenas como bytes de fixture e nunca o executa.
 
-Para diagnóstico local, o próprio instalador aceita
+Para diagnóstico local e automação, o próprio instalador aceita as opções CLI:
 `--controller-status <pasta>`, `--controller-install <pasta>`,
-`--controller-remove <pasta>` e `--controller-launch <pasta>`.
-Somente o último comando abre o jogo; todos usam as mesmas funções do painel.
+`--controller-remove <pasta>` e `--controller-launch <pasta>`, além de `--help` e `--version`.
+No Windows (mesmo em build release), os modos CLI anexam ao console do processo pai para exibir saídas JSON e erros no terminal.
+Somente `--controller-launch` abre o jogo, verificando a trava de operação compartilhada (`operation.lock`); todos usam as mesmas funções do painel.
 
 Na rodada de 16/10/2026, materiais e resultados da avaliação humana ficam em
 `validate/18-dualsense/20261016/`. Preservar a instalação Steam e usar uma cópia
