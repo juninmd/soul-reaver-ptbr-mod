@@ -532,9 +532,12 @@ pub fn is_game_running(game: &Path) -> Result<bool> {
             .without_tasks(),
     );
     Ok(system.processes().values().any(|p| {
-        p.exe()
-            .and_then(|e| e.canonicalize().ok())
-            .is_some_and(|e| e == expected)
+        p.name()
+            .to_str()
+            .is_some_and(|n| n.eq_ignore_ascii_case("kain2.exe"))
+            && p.exe()
+                .and_then(|e| e.canonicalize().ok())
+                .is_some_and(|e| e == expected)
     }))
 }
 
