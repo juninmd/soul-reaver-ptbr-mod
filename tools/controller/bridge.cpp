@@ -165,7 +165,15 @@ int Attach(DWORD pid, const std::wstring& logPath) {
     if(!QueryFullProcessImageNameW(process,0,imagePath,&imageChars)) { CloseHandle(process); CloseHandle(mutex); return 7; }
     const wchar_t* base=wcsrchr(imagePath,L'\\'); base=base?base+1:imagePath;
     if(_wcsicmp(base,L"kain2.exe")!=0) { CloseHandle(process); CloseHandle(mutex); return 8; }
-    if(!logPath.empty()) { static std::wofstream file; file.open(logPath,std::ios::out|std::ios::app); if(!file) { CloseHandle(process); CloseHandle(mutex); return 6; } g_log=&file; }
+    if(!logPath.empty()) {
+        static std::wofstream file; file.open(logPath,std::ios::out|std::ios::app); if(!file) { CloseHandle(process); CloseHandle(mutex); return 6; } g_log=&file;
+        std::wstring readyPath = logPath;
+        size_t pos = readyPath.rfind(L".jsonl");
+        if(pos != std::wstring::npos) readyPath.replace(pos, 6, L".ready");
+        else readyPath += L".ready";
+        std::wofstream readyFile(readyPath);
+        if(readyFile) { readyFile << L"READY\n"; readyFile.close(); }
+    }
     SetConsoleCtrlHandler(ConsoleHandler,TRUE);
     Device device{}; bool connected=false,focused=false; std::vector<Key> owned; ULONGLONG nextSearch=0; State lastState{}; bool haveLastState=false;
     while(WaitForSingleObject(process,0)==WAIT_TIMEOUT) {
@@ -192,11 +200,12 @@ int Attach(DWORD pid, const std::wstring& logPath) {
 
 int wmain(int argc, wchar_t** argv) {
     if(argc==2 && _wcsicmp(argv[1],L"--probe")==0) { PrintJsonProbe(); return 0; }
+    if(argc==2 && _wcsicmp(argv[1],L"--check")==0) { Device d{}; return FindDevice(d)?0:1; }
     if(argc==2 && _wcsicmp(argv[1],L"--self-test")==0) return SelfTest()?0:1;
     if(argc>=3 && _wcsicmp(argv[1],L"--attach")==0) {
         wchar_t* end=nullptr; unsigned long pid=wcstoul(argv[2],&end,10); if(!end||*end||pid==0||pid>0xfffffffful) return 2;
         std::wstring logPath; for(int i=3;i<argc;++i) { if(_wcsicmp(argv[i],L"--log")==0 && i+1<argc) logPath=argv[++i]; else return 2; }
         return Attach(static_cast<DWORD>(pid),logPath);
     }
-    fwprintf(stderr,L"usage: sr-dualsense.exe --probe | --self-test | --attach <PID> [--log <path>]\n"); return 2;
+    fwprintf(stderr,L"usage: sr-dualsense.exe --probe | --check | --self-test | --attach <PID> [--log <path>]\n"); return 2;
 }
