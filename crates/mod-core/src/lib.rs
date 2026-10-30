@@ -739,10 +739,10 @@ pub fn restore_game(game: &Path, progress: impl FnMut(&str)) -> Result<GameInfo>
 pub fn apply_graphics(
     game: &Path,
     graphics_source: &Path,
-    enable_widescreen: bool,
+    request: graphics::Request,
     progress: impl FnMut(&str),
 ) -> Result<()> {
-    graphics::apply(game, graphics_source, enable_widescreen, progress)?;
+    graphics::apply(game, graphics_source, request, progress)?;
     Ok(())
 }
 

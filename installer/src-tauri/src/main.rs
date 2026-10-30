@@ -346,10 +346,22 @@ struct ApplyOptions {
     widescreen: bool,
     textures: bool,
     ui: bool,
+    #[serde(default = "default_true")]
+    vsync: bool,
+    #[serde(default = "default_fps_limit")]
+    fps_limit: u32,
+    #[serde(default)]
+    always_on_top: bool,
+    #[serde(default)]
+    render_resolution: Option<String>,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_fps_limit() -> u32 {
+    60
 }
 
 #[derive(Serialize)]
@@ -391,6 +403,11 @@ fn detect_game_blocking() -> Option<String> {
         }
     }
     None
+}
+
+#[tauri::command]
+fn get_display_profile() -> graphics::DisplayProfile {
+    graphics::display_profile()
 }
 
 #[tauri::command]
@@ -579,10 +596,22 @@ fn apply_mod_blocking(
     }
     if options.graphics && graphics_dir.exists() {
         control.checkpoint()?;
+        let render = graphics::RenderOptions {
+            resolution: options
+                .render_resolution
+                .clone()
+                .unwrap_or_else(|| "auto".into()),
+            vsync: options.vsync,
+            fps_limit: options.fps_limit,
+            always_on_top: options.always_on_top,
+        };
         graphics::apply_with_control(
             game,
             &graphics_dir,
-            options.widescreen,
+            graphics::Request {
+                widescreen: options.widescreen,
+                render,
+            },
             control,
             structured_reporter(&app),
         )?;
@@ -990,6 +1019,7 @@ fn repair_mod_blocking(
     let graphics_dir = module_dir(&bundle, "graphics");
     let textures = module_manifest(&bundle, "textures", "textures.json");
     let ui = module_manifest(&bundle, "ui", "ui.json");
+    let render = graphics::current_render(Path::new(&game_path));
     let options = ApplyOptions {
         dubbing: true,
         localization: asset_manifests.localization.is_some(),
@@ -998,6 +1028,10 @@ fn repair_mod_blocking(
         widescreen: true,
         textures: textures.exists(),
         ui: ui.exists(),
+        vsync: render.vsync,
+        fps_limit: render.fps_limit,
+        always_on_top: render.always_on_top,
+        render_resolution: Some(render.resolution),
     };
     if controller::status(Path::new(&game_path))?.installed {
         control.checkpoint()?;
@@ -1280,6 +1314,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             detect_game,
+            get_display_profile,
             inspect_game,
             get_default_package_info,
             get_bundle_info,
