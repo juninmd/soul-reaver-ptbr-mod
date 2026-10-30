@@ -51,10 +51,14 @@ fn main() {
             if args.len() == 4 || (args.len() == 5 && args[4] == "widescreen") =>
         {
             let widescreen = args.len() == 5;
+            let request = soul_reaver_mod_core::graphics::Request {
+                widescreen,
+                render: soul_reaver_mod_core::graphics::RenderOptions::default(),
+            };
             finish(soul_reaver_mod_core::graphics::apply(
                 Path::new(&args[2]),
                 Path::new(&args[3]),
-                widescreen,
+                request,
                 progress,
             ));
             return;

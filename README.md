@@ -36,7 +36,7 @@ opcionais para revisitar o clássico. A base suportada é a edição **Steam Cla
 | **Vozes de Nosgoth** | Dublagem local com Qwen3-TTS, perfis consistentes por personagem e revisão humana. | Campanha parcial; avaliação por take e cena. |
 | **Cada palavra, um novo sentido** | Tradução de menus, dicas e legendas, com pesquisa de suporte a Unicode. | Integração de acentos no jogo pendente. |
 | **A história ganha vida** | Vídeos PT-BR em um componente próprio, com instalação e restauração independentes. | Playback e versões HD em validação. |
-| **Um novo olhar para o abismo** | Perfil dgVoodoo em 3840×2160 e widescreen Hor+ 16:9 opcionais. | Preparação offline; gameplay ainda pendente. |
+| **Um novo olhar para o abismo** | Wrapper dgVoodoo2 com resolução, VSync e limite de quadros resolvidos na instalação; widescreen Hor+ 16:9 opcional. | Preparação offline; estabilidade de render e escala ainda dependem de validação em jogo. |
 | **Controle nas suas mãos** | Painel DualSense, mapa de botões, acompanhante local e faixa de ícones em janela. | Limites de dispositivos e funções documentados. |
 | **Um caminho de volta** | Instalador com SHA-256, backups, registros de propriedade e restauração por componente. | Fluxos exercitados em cópias isoladas. |
 
@@ -79,7 +79,7 @@ Contar slots substituídos não mede a cobertura da campanha.
 | **Áudio** | Tabela de slots decodificada; piloto da entrada 291 exercitado em runtime instrumentado. | Disparo natural, qualidade e sincronismo do conjunto atual. |
 | **Localização** | Rota Unicode exercitada em host offline; pacote V6 registrado com legendas ASCII. | Texto acentuado integrado ao renderer do jogo. |
 | **Vídeos** | Candidato `crylogo` em 2560×1440 decodificado offline. | Demais BIKs HD, playback e integração. |
-| **Gráficos** | Perfil e capturas de preparação em 3840×2160. | Gameplay, proporções, efeitos e estabilidade em 4K. |
+| **Gráficos** | Sonda de adaptador D3D11 e geração do `dgVoodoo.conf` por desktop; capturas de preparação em 3840×2160. | Gameplay, proporções, efeitos, escala e estabilidade do render. |
 | **Texturas e HUD** | Catálogos e pontes experimentais exercitados fora do jogo. | Ligação com o loader e as chamadas reais do renderer. |
 | **Instalador** | Aplicação e restauração em fixtures; leitura do registro legado de localização/vídeos corrigida. | Validação completa do pacote em uso natural no jogo. |
 

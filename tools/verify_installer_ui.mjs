@@ -61,6 +61,7 @@ await context.addInitScript(() => {
       if (command === 'plugin:event|unlisten') { listeners.delete(args.eventId); return; }
       if (command === 'detect_game') return bridge.detect;
       if (command === 'get_bundle_info') return structuredClone(bridge.bundle);
+      if (command === 'get_display_profile') return { desktop: '3840x2160', recommended: '3840x2160', featureLevel: '11_0', hardware: true, message: 'GPU Direct3D 11_0 detectada.' };
       if (command === 'inspect_game') { if (args.path.includes('incompatible')) throw 'Edição não suportada: hash diferente.'; bridge.game.path = args.path; return structuredClone(bridge.game); }
       if (command === 'get_controller_status') return structuredClone(bridge.controller);
       if (command === 'diagnose') return { path: args.gamePath, exeSha256: '9'.repeat(64), exeSupported: true, gameClosed: !bridge.controller.running, items: [{ id: 'voices', ok: bridge.game.status === 'installed', detail: `${bridge.game.replaced}/479 falas contra o backup` }] };
@@ -106,7 +107,7 @@ try {
   check('Escape devolve foco à revisão', await button('Revisar instalação').evaluate(e => e === document.activeElement));
   await install();
   check('Abrir jogo não aparece durante a instalação', await button('Abrir jogo').count() === 0);
-  check('IPC recebe destino e opções reais da seleção', JSON.stringify((await commandCalls('apply_mod')).at(-1).args) === JSON.stringify({ gamePath: 'C:\\fixture\\SoulReaver', options: { dubbing: true, localization: false, video: false, graphics: false, widescreen: false, textures: false, ui: false } }));
+  check('IPC recebe destino e opções reais da seleção', JSON.stringify((await commandCalls('apply_mod')).at(-1).args) === JSON.stringify({ gamePath: 'C:\\fixture\\SoulReaver', options: { dubbing: true, localization: false, video: false, graphics: false, widescreen: false, textures: false, ui: false, vsync: true, fpsLimit: 60, alwaysOnTop: false, renderResolution: 'auto' } }));
   await page.evaluate(() => window.__testBridge.emit('progress', { stage: 'instalacao', current: 1, total: 4, message: 'Aplicando dublagem.' }));
   await page.waitForFunction(() => document.querySelector('progress')?.value === 25);
   check('Progresso usa etapa enviada pelo backend', Number(await page.getByRole('progressbar').getAttribute('value')) === 25);

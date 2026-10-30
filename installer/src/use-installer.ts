@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
-import { effectiveOptions, hasInstallation, initialOptions, type ApplyOptions, type BundleInfo, type ControllerStatus, type Diagnostics, type GameInfo, type Operation, type OperationKind, type OperationProgress } from './installer-model';
+import { effectiveOptions, hasInstallation, initialOptions, initialRender, type ApplyOptions, type BundleInfo, type ControllerStatus, type Diagnostics, type DisplayProfile, type GameInfo, type Operation, type OperationKind, type OperationProgress, type RenderSettings } from './installer-model';
 
 export type ControllerAction = 'refresh' | 'install' | 'remove' | 'launch';
 
@@ -13,6 +13,8 @@ export function useInstaller() {
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [controller, setController] = useState<ControllerStatus | null>(null);
   const [options, setOptions] = useState<ApplyOptions>(initialOptions);
+  const [render, setRender] = useState<RenderSettings>(initialRender);
+  const [display, setDisplay] = useState<DisplayProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [listenersReady, setListenersReady] = useState(false);
   const [controllerAction, setControllerAction] = useState<ControllerAction | null>(null);
@@ -68,12 +70,13 @@ export function useInstaller() {
         if (disposed) return;
         setListenersReady(true);
         // A missing/invalid package must not hide a detected installation or recovery.
-        const [detected, foundBundle] = await Promise.allSettled([
-          invoke<string | null>('detect_game'), invoke<BundleInfo>('get_bundle_info'),
+        const [detected, foundBundle, profile] = await Promise.allSettled([
+          invoke<string | null>('detect_game'), invoke<BundleInfo>('get_bundle_info'), invoke<DisplayProfile>('get_display_profile'),
         ]);
         if (disposed) return;
         if (foundBundle.status === 'fulfilled') setBundle(foundBundle.value);
         else setBundleError(String(foundBundle.reason));
+        if (profile.status === 'fulfilled') setDisplay(profile.value);
         if (detected.status === 'fulfilled' && detected.value) await readGame(detected.value, true);
         else if (detected.status === 'rejected') setError(String(detected.reason));
       } catch (err) {
@@ -140,7 +143,14 @@ export function useInstaller() {
     setProgress(null); setMessage('Preparando operação…'); setPaused(false); setStopping(false);
     try {
       const command = kind === 'install' ? 'apply_mod' : kind === 'repair' ? 'repair_mod' : 'restore_mod';
-      const updated = await invoke<GameInfo>(command, kind === 'install' ? { gamePath: path, options: selectedOptions } : { gamePath: path });
+      const applyOptions = {
+        ...selectedOptions,
+        vsync: render.vsync,
+        fpsLimit: render.fpsLimit,
+        alwaysOnTop: render.alwaysOnTop,
+        renderResolution: render.resolution,
+      };
+      const updated = await invoke<GameInfo>(command, kind === 'install' ? { gamePath: path, options: applyOptions } : { gamePath: path });
       setGameInfo(updated);
       setOperation({ kind, path, status: 'succeeded' });
       setMessage(kind === 'restore' ? 'Restauração concluída.' : kind === 'repair' ? 'Reparo concluído.' : 'Componentes aplicados. Consulte a cobertura no diagnóstico.');
@@ -197,5 +207,5 @@ export function useInstaller() {
     }
   }
 
-  return { gamePath, gameInfo, bundle, bundleError, diagnostics, controller, options, setOptions, selectedOptions, loading, listenersReady, controllerAction, launching, canLaunchGame, launchGame, error, notice, operation, progress, message, paused, stopping, controlPending, running, busy, anyInstalled, readyToApply, mutation, inspect, chooseFolder, reloadBundle, refresh, run, togglePause, cancel, runController, openLogsFolder, setNotice };
+  return { gamePath, gameInfo, bundle, bundleError, diagnostics, controller, options, setOptions, selectedOptions, render, setRender, display, loading, listenersReady, controllerAction, launching, canLaunchGame, launchGame, error, notice, operation, progress, message, paused, stopping, controlPending, running, busy, anyInstalled, readyToApply, mutation, inspect, chooseFolder, reloadBundle, refresh, run, togglePause, cancel, runController, openLogsFolder, setNotice };
 }
