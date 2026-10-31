@@ -40,11 +40,16 @@ O build Windows requer Visual Studio Build Tools 2022 ou 2026 com C++ x64. O scr
 `staging/controller-v1`. Ele não abre o jogo nem executa testes durante o build.
 
 O componente instala apenas `sr-dualsense.exe`, com journal próprio
-`.soul-reaver-ptbr/controller-state.json`, SHA-256, trava compartilhada e recusa de
+`.soul-reaver-ptbr/controller-journal.json`, SHA-256, trava compartilhada e recusa de
 arquivos preexistentes sem propriedade. Não substitui `DINPUT.dll`, executável,
 arquivos de conteúdo, configurações de teclado ou saves. **Remover suporte** e
 **Restaurar tudo** removem o acompanhante somente se o hash ainda conferir.
 **Reparar** atualiza o componente se ele já estiver instalado.
+
+O journal usa um nome próprio porque o runtime de legendas grava o estado ao vivo do
+controle em `.soul-reaver-ptbr/controller-runtime.json`; versões antigas gravavam em
+`controller-state.json`, que é lido apenas como journal legado quando ainda contém um
+registro válido. Um arquivo de status nesse nome nunca bloqueia o diagnóstico.
 
 O acompanhante segue o padrão dos demais módulos: fica em
 `modules/controller/` (`controller.json` + `payload/sr-dualsense.exe`), listado em

@@ -45,8 +45,8 @@ export function useInstaller() {
     setDiagnostics(diagnosis.status === 'fulfilled' ? diagnosis.value : null);
     setController(control.status === 'fulfilled' ? control.value : null);
     if (inspection.status === 'rejected') throw new Error(String(inspection.reason));
-    const failures = [diagnosis, control].filter(item => item.status === 'rejected');
-    if (failures.length) setNotice('Algumas verificações não puderam ser concluídas. Atualize o diagnóstico antes de instalar.');
+    const failures = [diagnosis, control].flatMap(item => item.status === 'rejected' ? [String(item.reason)] : []);
+    if (failures.length) setNotice(`Algumas verificações não puderam ser concluídas: ${[...new Set(failures)].join(' · ')}`);
   }
 
   useEffect(() => {
