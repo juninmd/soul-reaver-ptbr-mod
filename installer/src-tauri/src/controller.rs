@@ -106,7 +106,45 @@ pub fn install(game: &Path) -> Result<Status, String> {
 
 pub fn remove(game: &Path) -> Result<Status, String> {
     external::restore(game, &external::CONTROLLER, |_| {})?;
+    remove_orphaned_companion(game)?;
     status(game)
+}
+
+/// An older runtime overwrote the journal name, so a companion installed by this
+/// mod can exist without ownership records. Only the exact embedded bytes are
+/// removed; any other file is reported and preserved.
+fn remove_orphaned_companion(game: &Path) -> Result<(), String> {
+    let companion = game.join("sr-dualsense.exe");
+    if !companion.exists() {
+        return Ok(());
+    }
+    // Lock before hashing so the decision and the deletion happen under the same
+    // guard, and never follow a link placed at the companion path.
+    let _lock = external::lock(game)?;
+    let meta = fs::symlink_metadata(&companion).map_err(|e| e.to_string())?;
+    if meta.file_type().is_symlink() || !meta.is_file() {
+        return Err("sr-dualsense.exe é um link ou não é um arquivo regular; recusado.".into());
+    }
+    if !companion_matches(game) {
+        return Err(
+            "sr-dualsense.exe presente não pertence a esta versão do instalador; remova manualmente."
+                .into(),
+        );
+    }
+    fs::remove_file(&companion).map_err(|e| e.to_string())
+}
+
+fn companion_matches(game: &Path) -> bool {
+    !COMPANION.is_empty()
+        && fs::read(game.join("sr-dualsense.exe"))
+            .map(|bytes| digest(&bytes) == digest(COMPANION))
+            .unwrap_or(false)
+}
+
+/// Installed according to the journal, or present with exactly the embedded bytes,
+/// which is what remains after an older runtime overwrote the journal.
+pub fn deployed(game: &Path) -> bool {
+    status(game).map(|status| status.installed).unwrap_or(false) || companion_matches(game)
 }
 
 pub fn launch(game: &Path) -> Result<Status, String> {
@@ -115,7 +153,7 @@ pub fn launch(game: &Path) -> Result<Status, String> {
     if state.running {
         return Err("O jogo já está aberto. Feche-o antes de iniciar com DualSense.".into());
     }
-    if !state.installed {
+    if !state.installed && !companion_matches(game) {
         return Err("Habilite o suporte ao DualSense primeiro.".into());
     }
     if !state.connected {
@@ -181,6 +219,26 @@ pub fn launch(game: &Path) -> Result<Status, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[cfg(windows)]
+    fn orphaned_companion_is_removed_only_when_the_bytes_match() {
+        let dir = tempfile::tempdir().unwrap();
+        let game = dir.path();
+        fs::write(game.join("sr-dualsense.exe"), b"foreign companion").unwrap();
+        assert!(remove_orphaned_companion(game).is_err());
+        assert_eq!(
+            fs::read(game.join("sr-dualsense.exe")).unwrap(),
+            b"foreign companion"
+        );
+
+        fs::write(game.join("sr-dualsense.exe"), COMPANION).unwrap();
+        assert!(companion_matches(game));
+        remove_orphaned_companion(game).unwrap();
+        assert!(!game.join("sr-dualsense.exe").exists());
+        // Nothing left to remove.
+        remove_orphaned_companion(game).unwrap();
+    }
 
     #[test]
     #[ignore = "Requires SRMOD_TEST_EXE pointing at a compatible local game executable; never launches it"]

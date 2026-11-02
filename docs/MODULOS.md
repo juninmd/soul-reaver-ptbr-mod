@@ -27,7 +27,7 @@ andamento — nenhum dos dois guarda arquivo oficial.
 | `modules/graphics/` | — | graphics | `DDraw.dll`, `D3DImm.dll`, `dgVoodoo.conf` (modelo; resolução, VSync, limite e Hor+ 16:9 resolvidos na instalação) |
 | `modules/textures/` | `textures.json` | external `TEXTURES` — journal `textures-state.json` | 1.287 `payload/page-XXXX.raw` (HD 1024²) — **experimental** |
 | `modules/ui/` | `ui.json` | external `UI` — journal `ui-state.json` | `payload/hd-ui-cache.dll`, `payload/ui-ptbr.bin` — **experimental** |
-| `modules/controller/` | `controller.json` | external `CONTROLLER` — journal `controller-state.json` | `payload/sr-dualsense.exe` (companheiro DualSense) |
+| `modules/controller/` | `controller.json` | external `CONTROLLER` — journal `controller-journal.json` | `payload/sr-dualsense.exe` (companheiro DualSense) |
 | `modules/bundle.json` | índice | — | lista de módulos, resolução, marcações `experimental` |
 
 Legendas e vídeos têm pastas e journals separados: a localização cobre menus,

@@ -1730,7 +1730,8 @@ static void __cdecl hook_UpdateInput() {
             send_dualsense_output(r, g, b, 0, 0);
 
             wchar_t path[MAX_PATH];
-            swprintf_s(path, L"%s.soul-reaver-ptbr\\controller-state.json", directory().c_str());
+            // Live status only: the ownership journal lives in controller-journal.json.
+            swprintf_s(path, L"%s.soul-reaver-ptbr\\controller-runtime.json", directory().c_str());
             HANDLE hFile = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
             if (hFile != INVALID_HANDLE_VALUE) {
                 char json[256];

@@ -1033,11 +1033,20 @@ fn repair_mod_blocking(
         always_on_top: render.always_on_top,
         render_resolution: Some(render.resolution),
     };
-    if controller::status(Path::new(&game_path))?.installed {
+    // The companion is optional: a failure there is reported after the other
+    // components were repaired instead of aborting the whole operation.
+    let mut controller_error = None;
+    if controller::deployed(Path::new(&game_path)) {
         control.checkpoint()?;
-        controller::install(Path::new(&game_path))?;
+        if let Err(error) = controller::install(Path::new(&game_path)) {
+            controller_error = Some(error);
+        }
     }
-    apply_mod_blocking(app, game_path, options, control)
+    let applied = apply_mod_blocking(app, game_path, options, control)?;
+    match controller_error {
+        Some(error) => Err(format!("DualSense não pôde ser reparado: {error}")),
+        None => Ok(applied),
+    }
 }
 
 #[tauri::command]
@@ -1095,35 +1104,52 @@ fn diagnose_blocking(game_path: String) -> Result<Diagnostics, String> {
             info.localization.menus, info.localization.subtitles, info.localization.files
         ),
     });
-    let bundle = bundle_info()?;
-    items.push(DiagnosticItem {
-        id: "video".into(),
-        ok: info.video.installed,
-        detail: format!(
-            "{}; módulo no bundle: {} ({} arquivos)",
-            info.video.message,
-            if bundle.video_available {
-                "disponível"
-            } else {
-                "indisponível"
-            },
-            bundle.video_files
-        ),
-    });
-    items.push(DiagnosticItem {
-        id: "bundle".into(),
-        ok: bundle.localized_files > 0 && bundle.video_available,
-        detail: format!(
-            "modules/: localização={}, vídeo={}, gráficos={}, texturas={}, UI={}; resolução={}; experimentais={}",
-            bundle.localized_files > 0,
-            bundle.video_available,
-            bundle.graphics_available,
-            bundle.textures_available,
-            bundle.ui_available,
-            bundle.resolution.as_deref().unwrap_or("não declarada"),
-            if bundle.experimental.is_empty() { "nenhum".to_string() } else { bundle.experimental.join(", ") }
-        ),
-    });
+    // One unavailable module must not blank the whole report: each check that can
+    // fail on its own is reported as an item instead of aborting the diagnosis.
+    match bundle_info() {
+        Ok(bundle) => {
+            items.push(DiagnosticItem {
+                id: "video".into(),
+                ok: info.video.installed,
+                detail: format!(
+                    "{}; módulo no bundle: {} ({} arquivos)",
+                    info.video.message,
+                    if bundle.video_available {
+                        "disponível"
+                    } else {
+                        "indisponível"
+                    },
+                    bundle.video_files
+                ),
+            });
+            items.push(DiagnosticItem {
+                id: "bundle".into(),
+                ok: bundle.localized_files > 0 && bundle.video_available,
+                detail: format!(
+                    "modules/: localização={}, vídeo={}, gráficos={}, texturas={}, UI={}; resolução={}; experimentais={}",
+                    bundle.localized_files > 0,
+                    bundle.video_available,
+                    bundle.graphics_available,
+                    bundle.textures_available,
+                    bundle.ui_available,
+                    bundle.resolution.as_deref().unwrap_or("não declarada"),
+                    if bundle.experimental.is_empty() { "nenhum".to_string() } else { bundle.experimental.join(", ") }
+                ),
+            });
+        }
+        Err(error) => {
+            items.push(DiagnosticItem {
+                id: "video".into(),
+                ok: info.video.installed,
+                detail: format!("{}; módulo no bundle: não foi possível ler.", info.video.message),
+            });
+            items.push(DiagnosticItem {
+                id: "bundle".into(),
+                ok: false,
+                detail: format!("Pacote indisponível: {error}"),
+            });
+        }
+    }
     items.push(DiagnosticItem {
         id: "graphics".into(),
         ok: info.graphics.installed,
@@ -1139,12 +1165,18 @@ fn diagnose_blocking(game_path: String) -> Result<Diagnostics, String> {
         ok: info.ui.installed,
         detail: info.ui.message.clone(),
     });
-    let controller = controller::status(Path::new(&game_path))?;
-    items.push(DiagnosticItem {
-        id: "controller".into(),
-        ok: controller.installed && controller.connected,
-        detail: controller.message,
-    });
+    match controller::status(Path::new(&game_path)) {
+        Ok(controller) => items.push(DiagnosticItem {
+            id: "controller".into(),
+            ok: controller.installed && controller.connected,
+            detail: controller.message,
+        }),
+        Err(error) => items.push(DiagnosticItem {
+            id: "controller".into(),
+            ok: false,
+            detail: format!("Não foi possível verificar o suporte ao DualSense: {error}"),
+        }),
+    }
     Ok(Diagnostics {
         path: info.path,
         exe_sha256,

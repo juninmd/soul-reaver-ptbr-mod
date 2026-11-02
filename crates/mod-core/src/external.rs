@@ -15,6 +15,8 @@ pub struct Component {
     pub id: &'static str,
     pub label: &'static str,
     pub state_file: &'static str,
+    /// Older journal name, read-only. Ignored unless it still holds a valid journal.
+    pub legacy_state_file: Option<&'static str>,
     /// (file, original source SHA-256) for files that replace a known original.
     pub known: &'static [(&'static str, &'static str)],
     /// Exact paths created by this mod (no original file).
@@ -29,6 +31,7 @@ pub const TEXTURES: Component = Component {
     id: "textures",
     label: "Texturas HD",
     state_file: "textures-state.json",
+    legacy_state_file: None,
     known: &[("textures.big", TEXTURES_SHA256)],
     created: &["hd-texture-cache.dll", "hd-textures/index.json"],
     created_prefixes: &["hd-textures/"],
@@ -39,6 +42,7 @@ pub const UI: Component = Component {
     id: "ui",
     label: "Interface/HUD",
     state_file: "ui-state.json",
+    legacy_state_file: None,
     known: &[],
     created: &["hd-ui-cache.dll", "ui-ptbr.bin"],
     created_prefixes: &[],
@@ -46,10 +50,14 @@ pub const UI: Component = Component {
 };
 
 /// Standalone input companion; never replaces DirectInput or game resources.
+/// The journal uses its own name because the subtitle runtime reports the live
+/// controller state through `controller-runtime.json` in the same directory
+/// (older builds wrote it into `controller-state.json`).
 pub const CONTROLLER: Component = Component {
     id: "controller",
     label: "DualSense",
-    state_file: "controller-state.json",
+    state_file: "controller-journal.json",
+    legacy_state_file: Some("controller-state.json"),
     known: &[],
     created: &["sr-dualsense.exe"],
     created_prefixes: &[],
@@ -222,34 +230,77 @@ pub fn lock(game: &Path) -> Result<File> {
     Ok(file)
 }
 
-fn load_state(game: &Path, component: &Component) -> Result<State> {
-    let path = game.join(MANAGER).join(component.state_file);
-    chain(&path)?;
-    if !path.exists() {
-        return Ok(State {
-            schema: 1,
-            game: game.into(),
-            phase: "original".into(),
-            assets: vec![],
-        });
+const PHASES: [&str; 5] = [
+    "original",
+    "preparing",
+    "installed",
+    "restoring",
+    "restored",
+];
+
+fn empty_state(game: &Path) -> State {
+    State {
+        schema: 1,
+        game: game.into(),
+        phase: "original".into(),
+        assets: vec![],
     }
+}
+
+fn read_state(game: &Path, component: &Component, path: &Path) -> Result<State> {
+    chain(path)?;
     let state: State =
-        serde_json::from_slice(&read(&path, 512 * 1024)?).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&read(path, 512 * 1024)?).map_err(|e| e.to_string())?;
     if state.schema != 1
         || io(state.game.canonicalize())? != game
-        || ![
-            "original",
-            "preparing",
-            "installed",
-            "restoring",
-            "restored",
-        ]
-        .contains(&state.phase.as_str())
+        || !PHASES.contains(&state.phase.as_str())
     {
         return Err(format!("Registro de {} incompatível.", component.label));
     }
     validate_state(game, component, &state)?;
     Ok(state)
+}
+
+/// Reads a legacy journal only while it still describes this installation. Files
+/// written by another writer in the same name (the companion runtime status) are
+/// ignored, and so is a record that no longer matches the files on disk: only the
+/// current journal is authoritative enough to block an operation.
+fn read_legacy_state(
+    game: &Path,
+    component: &Component,
+    path: &Path,
+) -> Result<Option<State>> {
+    chain(path)?;
+    let bytes = read(path, 512 * 1024)?;
+    let Ok(state) = serde_json::from_slice::<State>(&bytes) else {
+        return Ok(None);
+    };
+    let Ok(canonical) = state.game.canonicalize() else {
+        return Ok(None);
+    };
+    if state.schema != 1 || canonical != game || !PHASES.contains(&state.phase.as_str()) {
+        return Ok(None);
+    }
+    Ok(validate_state(game, component, &state).ok().map(|()| state))
+}
+
+fn load_state(game: &Path, component: &Component) -> Result<State> {
+    let manager = game.join(MANAGER);
+    let path = manager.join(component.state_file);
+    chain(&path)?;
+    if path.exists() {
+        return read_state(game, component, &path);
+    }
+    // Older builds wrote the journal under a name that another writer later reused.
+    if let Some(legacy) = component.legacy_state_file {
+        let legacy_path = manager.join(legacy);
+        if legacy_path.exists() {
+            if let Some(state) = read_legacy_state(game, component, &legacy_path)? {
+                return Ok(state);
+            }
+        }
+    }
+    Ok(empty_state(game))
 }
 
 fn validate_state(game: &Path, component: &Component, state: &State) -> Result<()> {
@@ -395,7 +446,13 @@ fn preflight(
     for (item, _) in plan {
         let previous = state.assets.iter().find(|e| e.file == item.file);
         let hash = current(&game.join(&item.file))?;
-        if hash != item.source_sha256
+        // A created-only file that already holds the exact payload bytes is this
+        // mod's own output. Adopting it recovers from a lost or overwritten journal
+        // without rewriting, backing up or discarding anything.
+        let already_ours = created_only(component, &item.file)
+            && hash.as_deref() == Some(item.result_sha256.as_str());
+        if !already_ours
+            && hash != item.source_sha256
             && !previous.is_some_and(|e| {
                 hash.as_ref() == Some(&e.result_sha256)
                     || (state.phase == "preparing" && hash == e.previous_sha256)
@@ -679,6 +736,7 @@ mod tests {
         id: "textures",
         label: "Texturas HD",
         state_file: "textures-state.json",
+        legacy_state_file: None,
         known: &[(
             "textures.big",
             "a09773724ca998fd6ccbbeed7fee193c3ccba39e82a355106776f6cee5eca5fe",
@@ -686,6 +744,19 @@ mod tests {
         created: &["hd-textures/index.json"],
         created_prefixes: &["hd-textures/"],
         clean_dirs: &["hd-textures"],
+    };
+
+    /// Same shape as the DualSense companion: a runtime writes its live status
+    /// into the journal name used by earlier versions.
+    const TEST_LEGACY: Component = Component {
+        id: "textures",
+        label: "Texturas HD",
+        state_file: "textures-journal.json",
+        legacy_state_file: Some("textures-state.json"),
+        known: TEST.known,
+        created: TEST.created,
+        created_prefixes: TEST.created_prefixes,
+        clean_dirs: TEST.clean_dirs,
     };
 
     fn fixture() -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf) {
@@ -839,5 +910,175 @@ mod tests {
     fn created_prefix_with_traversal_name_is_refused() {
         assert!(valid_asset(&TEST, "hd-textures/../evil.raw", None, &sha(b"x")).is_err());
         assert!(valid_asset(&TEST, "hd-textures/index.json", None, &sha(b"x")).is_ok());
+    }
+
+    #[test]
+    fn runtime_status_in_the_state_file_never_blocks_the_check() {
+        let (_root, game, _manifest, _backups) = fixture();
+        let manager = game.join(MANAGER);
+        fs::create_dir_all(&manager).unwrap();
+        fs::write(
+            manager.join("textures-state.json"),
+            br#"{"connected":true,"realm":0,"health":100,"lightbar":{"r":0,"g":110,"b":255}}"#,
+        )
+        .unwrap();
+
+        let info = inspect(&game, &TEST_LEGACY).unwrap();
+        assert!(!info.installed);
+        assert!(info.message.contains("não instalado"), "{}", info.message);
+    }
+
+    #[test]
+    fn legacy_journal_is_read_and_the_next_write_uses_the_journal_name() {
+        let (_root, game, manifest, backups) = fixture();
+        apply_checked(&game, &TEST, &manifest, &backups, |_| {}).unwrap();
+        let manager = game.join(MANAGER);
+        assert!(manager.join(TEST.state_file).is_file());
+        assert!(!manager.join(TEST_LEGACY.state_file).exists());
+
+        // The installation is still recognised through the legacy journal name.
+        assert!(inspect(&game, &TEST_LEGACY).unwrap().installed);
+
+        // Applying again migrates the journal to its own name.
+        apply_checked(&game, &TEST_LEGACY, &manifest, &backups, |_| {}).unwrap();
+        assert!(manager.join(TEST_LEGACY.state_file).is_file());
+
+        // A runtime status later written into the legacy name changes nothing and
+        // is left untouched.
+        fs::write(
+            manager.join("textures-state.json"),
+            br#"{"connected":true,"realm":0,"souls":3}"#,
+        )
+        .unwrap();
+        assert!(inspect(&game, &TEST_LEGACY).unwrap().installed);
+        assert_eq!(
+            fs::read(manager.join(TEST.state_file)).unwrap(),
+            br#"{"connected":true,"realm":0,"souls":3}"#
+        );
+    }
+
+    /// Mirrors the DualSense companion: only created files, no original source.
+    const TEST_COMPANION: Component = Component {
+        id: "companion",
+        label: "Acompanhante",
+        state_file: "companion-journal.json",
+        legacy_state_file: Some("companion-state.json"),
+        known: &[],
+        created: &["sr-dualsense.exe"],
+        created_prefixes: &[],
+        clean_dirs: &[],
+    };
+
+    /// Mirrors the older build, which wrote the journal straight into the name the
+    /// runtime later reused.
+    const TEST_COMPANION_OLD: Component = Component {
+        id: "companion",
+        label: "Acompanhante",
+        state_file: "companion-state.json",
+        legacy_state_file: None,
+        known: &[],
+        created: &["sr-dualsense.exe"],
+        created_prefixes: &[],
+        clean_dirs: &[],
+    };
+
+    fn companion_fixture() -> (tempfile::TempDir, PathBuf, PathBuf, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let game = root.path().join("game");
+        fs::create_dir(&game).unwrap();
+        fs::write(game.join("kain2.exe"), b"fixture executable, never started").unwrap();
+        fs::write(game.join("savegame.her"), b"user save").unwrap();
+        let payload = b"companion payload".to_vec();
+        fs::write(root.path().join("sr-dualsense.exe"), &payload).unwrap();
+        let manifest = root.path().join("companion.json");
+        fs::write(
+            &manifest,
+            serde_json::to_vec(&AssetPackage {
+                schema: 1,
+                assets: vec![Asset {
+                    file: "sr-dualsense.exe".into(),
+                    payload: "sr-dualsense.exe".into(),
+                    source_sha256: None,
+                    result_sha256: sha(&payload),
+                }],
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        let backups = root.path().join("backup");
+        let game = game.canonicalize().unwrap();
+        (root, game, manifest, backups)
+    }
+
+    #[test]
+    fn companion_survives_a_runtime_status_file_and_adopts_an_orphaned_payload() {
+        let (_root, game, manifest, backups) = companion_fixture();
+        assert!(
+            apply_checked(&game, &TEST_COMPANION, &manifest, &backups, |_| {})
+                .unwrap()
+                .installed
+        );
+        let manager = game.join(MANAGER);
+
+        // The runtime rewrites the legacy name while the game is open.
+        fs::write(
+            manager.join("companion-state.json"),
+            br#"{"connected":true,"realm":0}"#,
+        )
+        .unwrap();
+        assert!(inspect(&game, &TEST_COMPANION).unwrap().installed);
+
+        // Losing the journal must not turn our own untouched payload into a conflict.
+        fs::remove_file(manager.join(TEST_COMPANION.state_file)).unwrap();
+        assert!(!inspect(&game, &TEST_COMPANION).unwrap().installed);
+        let info = apply_checked(&game, &TEST_COMPANION, &manifest, &backups, |_| {}).unwrap();
+        assert!(info.installed);
+        assert_eq!(
+            fs::read(game.join("sr-dualsense.exe")).unwrap(),
+            b"companion payload"
+        );
+        assert_eq!(fs::read(game.join("savegame.her")).unwrap(), b"user save");
+
+        // The adopted file is owned again, so removal deletes only it.
+        assert!(!restore_checked(&game, &TEST_COMPANION, |_| {}).unwrap().installed);
+        assert!(!game.join("sr-dualsense.exe").exists());
+        assert_eq!(fs::read(game.join("savegame.her")).unwrap(), b"user save");
+
+        // A different program in the same path is still refused.
+        fs::remove_file(manager.join(TEST_COMPANION.state_file)).unwrap();
+        fs::write(game.join("sr-dualsense.exe"), b"foreign companion").unwrap();
+        assert!(
+            apply_checked(&game, &TEST_COMPANION, &manifest, &backups, |_| {}).is_err()
+        );
+        assert_eq!(
+            fs::read(game.join("sr-dualsense.exe")).unwrap(),
+            b"foreign companion"
+        );
+    }
+
+    #[test]
+    fn stale_legacy_journal_blocks_nothing_and_deletes_nothing() {
+        let (_root, game, manifest, backups) = companion_fixture();
+        apply_checked(&game, &TEST_COMPANION_OLD, &manifest, &backups, |_| {}).unwrap();
+        assert!(game.join(MANAGER).join("companion-state.json").is_file());
+
+        // A newer payload arrives and the newer journal is lost: the legacy record
+        // no longer describes the disk and must not be trusted.
+        fs::write(game.join("sr-dualsense.exe"), b"newer companion").unwrap();
+        assert!(!inspect(&game, &TEST_COMPANION).unwrap().installed);
+        restore_checked(&game, &TEST_COMPANION, |_| {}).unwrap();
+        assert_eq!(
+            fs::read(game.join("sr-dualsense.exe")).unwrap(),
+            b"newer companion"
+        );
+
+        // Installing the current payload still refuses the changed file.
+        assert!(
+            apply_checked(&game, &TEST_COMPANION, &manifest, &backups, |_| {}).is_err()
+        );
+        assert_eq!(
+            fs::read(game.join("sr-dualsense.exe")).unwrap(),
+            b"newer companion"
+        );
     }
 }
