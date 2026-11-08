@@ -135,6 +135,18 @@ class BuildGuardsTests(unittest.TestCase):
                 with self.subTest(pages=pages), self.assertRaises(ValueError):
                     hd.build(archive, pages, root / ("out" + str(len(pages))), exe)
 
+    def test_transparent_texels_stay_zero_and_opaque_never_become_zero(self):
+        raw = struct.pack("<H", 0) + struct.pack("<H", 0x0001) + bytes(256 * 256 * 2 - 4)
+        mask = hd.expand_plane_nearest(hd.transparent_plane(raw))
+        side = 1024
+        rgb = Image.new("RGB", (side, side), (200, 100, 50))  # upscale "preencheu" tudo
+        rgb.putpixel((4, 0), (0, 0, 0))  # texel opaco que escureceu até zero
+        packed = hd.pack_page(rgb, bytes(side * side), mask)
+        word = lambda x, y: struct.unpack_from("<H", packed, (y * side + x) * 2)[0]
+        self.assertEqual(word(0, 0), 0)
+        self.assertEqual(word(3, 3), 0)
+        self.assertNotEqual(word(4, 0), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

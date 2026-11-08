@@ -64,17 +64,33 @@ def expand_plane_nearest(plane: bytes) -> bytes:
     return bytes(out)
 
 
-def pack_page(rgb: Image.Image, bit15: bytes) -> bytes:
+def transparent_plane(raw: bytes) -> bytes:
+    """Máscara 256x256 (1 = palavra 0x0000 original, texel transparente no formato PSX)."""
+    if len(raw) != PAGE_BYTES:
+        raise ValueError(f"A página precisa ter {PAGE_BYTES} bytes")
+    return bytes(1 if word == 0 else 0 for (word,) in struct.iter_unpack("<H", raw))
+
+
+def pack_page(rgb: Image.Image, bit15: bytes, transparent: bytes | None = None) -> bytes:
     if rgb.mode != "RGB" or rgb.size != (SIDE * SCALE, SIDE * SCALE):
         raise ValueError("RGB candidata precisa ser RGB 1024x1024")
     width = SIDE * SCALE
     if len(bit15) != width * width:
         raise ValueError("Plano bit 15 precisa ser 1024x1024")
+    if transparent is not None and len(transparent) != width * width:
+        raise ValueError("Máscara de transparência precisa ser 1024x1024")
     pixels = rgb.tobytes()
     packed = bytearray(width * width * 2)
     for i in range(width * width):
         r, g, b = pixels[i * 3:i * 3 + 3]
         word = (0x8000 if bit15[i] else 0) | (((r * 31 + 127) // 255) << 10) | (((g * 31 + 127) // 255) << 5) | ((b * 31 + 127) // 255)
+        if transparent is not None:
+            # 0x0000 é transparente: o upscale não pode preenchê-lo (franjas)
+            # nem zerar texels opacos escuros (somem).
+            if transparent[i]:
+                word = 0
+            elif word == 0:
+                word = 1
         struct.pack_into("<H", packed, i * 2, word)
     return bytes(packed)
 
@@ -140,7 +156,7 @@ def build(archive: Path, pages: list[int], output: Path, realesrgan: Path,
             with Image.open(result_png) as loaded:
                 candidate = loaded.convert("RGB")
             plane1024 = expand_plane_nearest(plane256)
-            packed = pack_page(candidate, plane1024)
+            packed = pack_page(candidate, plane1024, expand_plane_nearest(transparent_plane(raw)))
             folder = output / f"page-{index:04}"
             folder.mkdir(exist_ok=False)
             shutil.copyfile(input_png, folder / "original-rgb-256.png")
@@ -162,7 +178,7 @@ def build(archive: Path, pages: list[int], output: Path, realesrgan: Path,
                 "bit15PlaneRaw": f"page-{index:04}/bit15-nearest-1024.raw",
                 "bit15SetPixels": sum(plane1024),
                 "bit15TotalPixels": len(plane1024),
-                "alphaRule": "bit 15 replicated 4x by nearest neighbor; meaning unverified and not treated as alpha",
+                "alphaRule": "bit 15 replicated 4x by nearest neighbor (meaning unverified); original 0x0000 texels stay 0x0000 and opaque texels never quantize to 0x0000",
                 "candidatePackedSHA256": digest(packed)["sha256"],
                 "candidatePackedCRC32": digest(packed)["crc32"],
                 "aiModel": model_name,
