@@ -111,8 +111,10 @@ try {
   await page.evaluate(() => { window.__testBridge.controller.running = false; });
   await button('Ver restauração').click();
   const beforeRefresh = await inspections();
+  const bundleChecks = (await commandCalls('get_bundle_info')).length;
   await button('Atualizar diagnóstico').click(); await waitIdle();
   check('Atualizar o diagnóstico custa uma inspeção', await inspections() === beforeRefresh + 1);
+  check('Atualizar o diagnóstico reverifica o pacote em disco', (await commandCalls('get_bundle_info')).length === bundleChecks + 1);
   await button('Reparar componentes').click(); await button('Reparar agora').click(); await pending();
   check('Reparo mantém comando existente', (await commandCalls('repair_mod')).length === 1);
   await finish('success');

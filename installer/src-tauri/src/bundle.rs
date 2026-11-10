@@ -262,10 +262,11 @@ pub fn bundle_info() -> Result<BundleInfo, String> {
 
 /// Last verified package description.
 ///
-/// Verifying a package hashes every payload, so the diagnosis reuses the
-/// description obtained when the package was last checked instead of hashing
-/// it again on every refresh. Installing never trusts this cache: each
-/// component verifies its own payloads again before writing.
+/// Verifying a package hashes every payload, so the inspections that follow an
+/// operation reuse the description obtained when the package was last checked.
+/// The interface asks for a fresh verification whenever the user requests the
+/// current state. Installing never trusts this cache: each component verifies
+/// its own payloads again before writing.
 #[derive(Default)]
 pub struct BundleCache(Mutex<Option<BundleInfo>>);
 

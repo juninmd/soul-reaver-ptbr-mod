@@ -68,9 +68,10 @@ válidos permitem restaurar; a decisão final e a recusa de conflitos pertencem 
 
 A interface pede ao backend um único relatório por atualização
 (`inspect_installation`); o estado do jogo, o diagnóstico e o controle derivam da
-mesma inspeção dos arquivos. A descrição do pacote é verificada ao abrir e em
-**Verificar pacote novamente**; a instalação confere cada payload outra vez antes
-de gravar.
+mesma inspeção dos arquivos. A descrição do pacote é verificada ao abrir, em
+**Atualizar diagnóstico** e em **Verificar pacote novamente**; a inspeção feita
+ao fim de uma operação reutiliza a última descrição verificada. A instalação
+confere cada payload outra vez antes de gravar.
 
 As regras de integridade, propriedade, backup e restauração continuam no core.
 Não há dados demonstrativos, temporizadores de progresso simulado nem caminhos

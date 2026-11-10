@@ -10,7 +10,7 @@ use soul_reaver_mod_core::{
     GameInfo, OperationControl, Progress, apply_package_with_control, assets, external, graphics,
     inspect_game, restore_game_with_control,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 type Emit<'a> = &'a dyn Fn(Progress);
 
@@ -43,19 +43,53 @@ fn default_fps_limit() -> u32 {
     60
 }
 
+/// The package on disk, located once per operation. A legacy package is split
+/// into a temporary directory that lives as long as this value.
+struct Sources {
+    voices: PathBuf,
+    manifests: bundle::AssetManifests,
+    graphics_dir: PathBuf,
+    textures: PathBuf,
+    ui: PathBuf,
+}
+
+impl Sources {
+    fn locate() -> Result<Self, String> {
+        let bundle = bundle::find_bundle()?;
+        Ok(Self {
+            voices: bundle::module_manifest(&bundle, "voices", "manifest.json"),
+            manifests: bundle::asset_manifests(&bundle)?,
+            graphics_dir: bundle::module_dir(&bundle, "graphics"),
+            textures: bundle::module_manifest(&bundle, "textures", "textures.json"),
+            ui: bundle::module_manifest(&bundle, "ui", "ui.json"),
+        })
+    }
+}
+
 pub fn apply(
     game: &Path,
     options: ApplyOptions,
     control: &OperationControl,
     emit: Emit,
 ) -> Result<GameInfo, String> {
-    let bundle = bundle::find_bundle()?;
+    apply_from(game, &Sources::locate()?, options, control, emit)
+}
+
+fn apply_from(
+    game: &Path,
+    sources: &Sources,
+    options: ApplyOptions,
+    control: &OperationControl,
+    emit: Emit,
+) -> Result<GameInfo, String> {
+    let Sources {
+        voices,
+        manifests,
+        graphics_dir,
+        textures,
+        ui,
+    } = sources;
     let backups = paths::backups_root()?;
-    let voices = bundle::module_manifest(&bundle, "voices", "manifest.json");
-    let manifests = bundle::asset_manifests(&bundle)?;
-    let graphics_dir = bundle::module_dir(&bundle, "graphics");
-    let textures = bundle::module_manifest(&bundle, "textures", "textures.json");
-    let ui = bundle::module_manifest(&bundle, "ui", "ui.json");
     let localization = manifests
         .localization
         .as_deref()
@@ -84,13 +118,13 @@ pub fn apply(
         assets::validate_install_component(game, &assets::VIDEO, manifest, &backups)?;
     }
     if install_textures {
-        external::validate_install(game, &external::TEXTURES, &textures, &backups)?;
+        external::validate_install(game, &external::TEXTURES, textures, &backups)?;
     }
 
     let mut applied: Vec<&str> = Vec::new();
     if options.dubbing {
         control.checkpoint()?;
-        apply_package_with_control(game, &voices, control, emit)?;
+        apply_package_with_control(game, voices, control, emit)?;
         applied.push("dublagem");
     }
     if let Some(manifest) = localization {
@@ -123,7 +157,7 @@ pub fn apply(
                 always_on_top: options.always_on_top,
             },
         };
-        graphics::apply_with_control(game, &graphics_dir, request, control, emit)?;
+        graphics::apply_with_control(game, graphics_dir, request, control, emit)?;
         applied.push(if options.widescreen {
             "4K + widescreen"
         } else {
@@ -132,19 +166,12 @@ pub fn apply(
     }
     if install_textures {
         control.checkpoint()?;
-        external::apply_with_control(
-            game,
-            &external::TEXTURES,
-            &textures,
-            &backups,
-            control,
-            emit,
-        )?;
+        external::apply_with_control(game, &external::TEXTURES, textures, &backups, control, emit)?;
         applied.push("texturas HD (experimental)");
     }
     if install_ui {
         control.checkpoint()?;
-        external::apply_with_control(game, &external::UI, &ui, &backups, control, emit)?;
+        external::apply_with_control(game, &external::UI, ui, &backups, control, emit)?;
         applied.push("interface (experimental)");
     }
     if applied.is_empty() {
@@ -246,23 +273,21 @@ pub fn restore_all(
 /// Re-applies every component that the bundle provides, reusing the normal
 /// idempotent paths. Useful after an interrupted operation.
 pub fn repair(game: &Path, control: &OperationControl, emit: Emit) -> Result<GameInfo, String> {
-    let bundle = bundle::find_bundle()?;
-    let manifests = bundle::asset_manifests(&bundle)?;
+    let sources = Sources::locate()?;
     let render = graphics::current_render(game);
     let options = ApplyOptions {
         dubbing: true,
-        localization: manifests.localization.is_some(),
-        video: manifests.video.is_some(),
-        graphics: bundle::module_dir(&bundle, "graphics").exists(),
+        localization: sources.manifests.localization.is_some(),
+        video: sources.manifests.video.is_some(),
+        graphics: sources.graphics_dir.exists(),
         widescreen: true,
-        textures: bundle::module_manifest(&bundle, "textures", "textures.json").exists(),
-        ui: bundle::module_manifest(&bundle, "ui", "ui.json").exists(),
+        textures: sources.textures.exists(),
+        ui: sources.ui.exists(),
         vsync: render.vsync,
         fps_limit: render.fps_limit,
         always_on_top: render.always_on_top,
         render_resolution: Some(render.resolution),
     };
-    drop(manifests);
     // The companion is optional: a failure there is reported after the other
     // components were repaired instead of aborting the whole operation.
     let mut controller_error = None;
@@ -270,7 +295,7 @@ pub fn repair(game: &Path, control: &OperationControl, emit: Emit) -> Result<Gam
         control.checkpoint()?;
         controller_error = controller::install(game).err();
     }
-    let applied = apply(game, options, control, emit)?;
+    let applied = apply_from(game, &sources, options, control, emit)?;
     match controller_error {
         Some(error) => Err(format!("DualSense não pôde ser reparado: {error}")),
         None => Ok(applied),

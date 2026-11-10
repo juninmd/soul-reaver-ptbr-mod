@@ -35,11 +35,16 @@ pub(crate) fn ensure_closed(game: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Repeated closed-game check for loops that write many files.
+/// Closed-game check for loops that write many files.
 ///
-/// Enumerating every process costs milliseconds; a package with hundreds of
-/// small files paid that before each one. The answer is reused for a short
-/// window instead, which keeps the guard continuous at a bounded cost.
+/// Enumerating every process costs milliseconds, and a texture package creates
+/// hundreds of small files. Two strengths are offered so the cost is only
+/// saved where it is safe to:
+///
+/// - [`ClosedGame::recheck`] scans now. It guards every write that replaces or
+///   restores a file the game itself ships and may hold open.
+/// - [`ClosedGame::ensure`] reuses a scan made within the last 250 ms. It
+///   guards files that only this mod creates or removes.
 pub(crate) struct ClosedGame {
     game: PathBuf,
     checked: Cell<Option<Instant>>,
@@ -54,10 +59,18 @@ impl ClosedGame {
             game: game.to_path_buf(),
             checked: Cell::new(None),
         };
-        guard.ensure()?;
+        guard.recheck()?;
         Ok(guard)
     }
 
+    /// Scans the processes now, whatever the last answer was.
+    pub(crate) fn recheck(&self) -> Result<()> {
+        ensure_closed(&self.game)?;
+        self.checked.set(Some(Instant::now()));
+        Ok(())
+    }
+
+    /// Accepts an answer obtained within the window; scans otherwise.
     pub(crate) fn ensure(&self) -> Result<()> {
         if self
             .checked
@@ -66,8 +79,15 @@ impl ClosedGame {
         {
             return Ok(());
         }
-        ensure_closed(&self.game)?;
-        self.checked.set(Some(Instant::now()));
-        Ok(())
+        self.recheck()
+    }
+
+    /// The check owed before writing a file: fresh when `ships_with_game`.
+    pub(crate) fn before_write(&self, ships_with_game: bool) -> Result<()> {
+        if ships_with_game {
+            self.recheck()
+        } else {
+            self.ensure()
+        }
     }
 }

@@ -585,7 +585,7 @@ fn apply_checked_control(
             total,
             message: format!("Instalando {}", entry.file),
         });
-        closed.ensure()?;
+        closed.before_write(entry.backup.is_some())?;
         let target = game.join(&entry.file);
         if current(&target)? != entry.previous_sha256 {
             return Err("Arquivo mudou durante a instalação; preservado.".into());
@@ -659,7 +659,7 @@ fn restore_checked_control(
             total,
             message: format!("Restaurando {}", entry.file),
         });
-        closed.ensure()?;
+        closed.before_write(entry.backup.is_some())?;
         let path = game.join(&entry.file);
         if &current(&path)? != expected {
             all_owned = false;

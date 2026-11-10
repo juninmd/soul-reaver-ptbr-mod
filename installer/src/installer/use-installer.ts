@@ -108,15 +108,17 @@ export function useInstaller() {
       if (typeof selected === 'string') await readGame(selected, true);
     });
   }
-  async function reloadBundle() {
-    await query(async () => {
-      setBundleError(null); setBundle(null);
-      try { setBundle(await ipc.bundleInfo()); }
-      catch (err) { setBundleError(errorText(err)); }
-    });
+  // Verifies the package on disk again; the backend reuses that description
+  // in every diagnosis until the next explicit verification.
+  async function verifyBundle() {
+    setBundleError(null); setBundle(null);
+    try { setBundle(await ipc.bundleInfo()); }
+    catch (err) { setBundleError(errorText(err)); }
   }
+  const reloadBundle = () => query(verifyBundle);
+  /** The user asked for the current state: package and installation are both read from disk. */
   async function refresh() {
-    if (gamePath) await query(() => readGame(gamePath, true));
+    if (gamePath) await query(async () => { await verifyBundle(); await readGame(gamePath, true); });
   }
 
   const selectedOptions = effectiveOptions(options, bundle);

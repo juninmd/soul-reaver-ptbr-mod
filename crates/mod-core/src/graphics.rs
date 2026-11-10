@@ -16,7 +16,7 @@ use crate::{
         supported_game_dir,
     },
     operation::{OperationControl, Progress},
-    process::{ClosedGame, ensure_closed},
+    process::ensure_closed,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -416,7 +416,7 @@ fn apply_checked_control(
 ) -> Result<GraphicsInfo> {
     let widescreen = request.widescreen;
     let _lock = lock(game)?;
-    let closed = ClosedGame::new(game)?;
+    ensure_closed(game)?;
     let source = io(source.canonicalize())?;
     chain(&source)?;
     let mut state = load(game)?;
@@ -501,7 +501,8 @@ fn apply_checked_control(
                 format!("Instalando {name}")
             },
         });
-        closed.ensure()?;
+        // A handful of files next to the executable: always a fresh scan.
+        ensure_closed(game)?;
         atomic_write(&game.join(name), bytes)?;
         progress(Progress {
             stage: "graficos".into(),
