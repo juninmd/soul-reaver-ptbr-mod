@@ -4,17 +4,21 @@ import { createRequire } from 'node:module';
 import { readFile, readdir, mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
+import { installBridge } from './installer_ui_bridge.mjs';
 
 const require = createRequire(import.meta.url);
 let chromium;
-for (const name of await readdir(join(process.env.LOCALAPPDATA, 'ms-playwright', '.links'))) {
-  try { chromium = require((await readFile(join(process.env.LOCALAPPDATA, 'ms-playwright', '.links', name), 'utf8')).trim()).chromium; if (chromium) break; } catch { /* local installs only */ }
+try { chromium = require('playwright').chromium; } catch { /* fall back to the per-user Windows install below */ }
+const links = process.env.LOCALAPPDATA && join(process.env.LOCALAPPDATA, 'ms-playwright', '.links');
+for (const name of chromium || !links ? [] : await readdir(links)) {
+  try { chromium = require((await readFile(join(links, name), 'utf8')).trim()).chromium; if (chromium) break; } catch { /* local installs only */ }
 }
 assert.ok(chromium, 'Playwright local não encontrado.');
 const output = resolve(process.argv[2] || 'validate/96-identidade-implementada/browser');
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1240, height: 800 }, deviceScaleFactor: 1 });
+// SRMOD_UI_SCALE=2 produces stills sharp enough to be read by people.
+const context = await browser.newContext({ viewport: { width: 1240, height: 800 }, deviceScaleFactor: Number(process.env.SRMOD_UI_SCALE) || 1 });
 const errors = [];
 const checks = [];
 const external = [];
@@ -23,62 +27,15 @@ page.setDefaultTimeout(7000);
 page.on('pageerror', error => errors.push(String(error)));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:1496/')) external.push(request.url()); });
-await context.addInitScript(() => {
-  window.isTauri = true;
-  const callbacks = new Map();
-  const listeners = new Map();
-  let id = 0;
-  const assets = { menus: false, subtitles: false, videos: 0, files: 0 };
-  const component = name => ({ id: name, installed: false, files: 0, message: 'Não instalado.' });
-  const bridge = window.__testBridge = {
-    calls: [], fail: {}, pending: null, launchPending: null, detect: 'C:\\fixture\\SoulReaver', folder: null,
-    game: { path: 'C:\\fixture\\SoulReaver', status: 'original', replaced: 0, total: 479, message: 'Base original compatível.', localization: assets, graphics: { installed: false, widescreen: false, files: 0, message: 'Gráficos originais.' }, video: component('video'), textures: component('textures'), ui: component('ui') },
-    bundle: { path: 'C:\\fixture\\package', name: 'Pacote de teste da interface', version: '0.1.0', voices: { name: 'Vozes', version: '0.1.0', replaced: 12, total: 479, bytes: 1000, localization: assets, graphicsAvailable: true }, graphicsAvailable: true, widescreenAvailable: true, texturesAvailable: false, uiAvailable: true, videoAvailable: true, videoFiles: 3, localizedFiles: 2, resolution: '3840x2160', experimental: ['ui'] },
-    controller: { installed: false, connected: false, running: false, deviceName: null, message: 'Nenhum DualSense detectado.' },
-    emit(event, payload) { for (const [key, listener] of listeners) if (listener.event === event) callbacks.get(listener.handler)?.({ event, id: key, payload }); },
-    finish(status = 'success') {
-      const pending = bridge.pending; bridge.pending = null;
-      if (status === 'success') {
-        bridge.game = { ...bridge.game, status: pending.command === 'restore_mod' ? 'original' : 'installed', replaced: pending.command === 'restore_mod' ? 0 : 12 };
-        pending.resolve(structuredClone(bridge.game));
-      } else pending.reject(status === 'cancel' ? 'Operação cancelada entre unidades de trabalho.' : 'Conflito: arquivo alterado posteriormente. Preservado.');
-    },
-    finishLaunch(error) {
-      const pending = bridge.launchPending; bridge.launchPending = null;
-      if (error) pending.reject(error);
-      else { bridge.controller.running = true; pending.resolve(); }
-    },
-  };
-  if (sessionStorage.getItem('fixtureScenario') === 'missing-bundle') bridge.fail.get_bundle_info = 'Pacote ausente';
-  window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener(_event, key) { listeners.delete(key); } };
-  window.__TAURI_INTERNALS__ = {
-    metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
-    transformCallback(callback) { const key = ++id; callbacks.set(key, callback); return key; },
-    async invoke(command, args = {}) {
-      bridge.calls.push({ command, args: structuredClone(args) });
-      if (bridge.fail[command]) throw bridge.fail[command];
-      if (command === 'plugin:event|listen') { const key = ++id; listeners.set(key, args); return key; }
-      if (command === 'plugin:event|unlisten') { listeners.delete(args.eventId); return; }
-      if (command === 'detect_game') return bridge.detect;
-      if (command === 'get_bundle_info') return structuredClone(bridge.bundle);
-      if (command === 'get_display_profile') return { desktop: '3840x2160', recommended: '3840x2160', featureLevel: '11_0', hardware: true, message: 'GPU Direct3D 11_0 detectada.' };
-      if (command === 'inspect_game') { if (args.path.includes('incompatible')) throw 'Edição não suportada: hash diferente.'; bridge.game.path = args.path; return structuredClone(bridge.game); }
-      if (command === 'get_controller_status') return structuredClone(bridge.controller);
-      if (command === 'diagnose') return { path: args.gamePath, exeSha256: '9'.repeat(64), exeSupported: true, gameClosed: !bridge.controller.running, items: [{ id: 'voices', ok: bridge.game.status === 'installed', detail: `${bridge.game.replaced}/479 falas contra o backup` }] };
-      if (command === 'plugin:dialog|open') return bridge.folder;
-      if (['apply_mod', 'repair_mod', 'restore_mod'].includes(command)) return new Promise((resolve, reject) => { bridge.pending = { command, resolve, reject }; });
-      if (command === 'launch_game') return new Promise((resolve, reject) => { bridge.launchPending = { resolve, reject }; });
-      if (command === 'pause_operation' || command === 'resume_operation' || command === 'cancel_operation') return;
-      if (command === 'plugin:window|close') { bridge.emit('tauri://close-requested', null); return; }
-      if (command.startsWith('plugin:window|')) return;
-      if (command === 'install_controller' || command === 'remove_controller') { bridge.controller.installed = command === 'install_controller'; return structuredClone(bridge.controller); }
-      throw new Error(`Comando não previsto no teste: ${command}`);
-    },
-  };
-});
+await context.addInitScript(installBridge);
 const button = name => page.getByRole('button', { name, exact: true });
 const check = (name, value) => { assert.ok(value, name); checks.push(name); };
-const shot = name => page.screenshot({ path: join(output, `${name}.png`), fullPage: true });
+// Entrance animations and screen transitions must be over before a still is taken.
+const settled = () => page.waitForFunction(() => !document.documentElement.matches(':active-view-transition') && document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== 'running'));
+const shot = async name => { await settled(); await page.screenshot({ path: join(output, `${name}.png`), fullPage: true }); };
+// The shell never scrolls; a screen fits when its content area does not overflow.
+const fits = () => page.evaluate(() => { const main = document.querySelector('main'); return document.documentElement.scrollHeight <= innerHeight + 1 && main.scrollHeight <= main.clientHeight + 1; });
+const inspections = async () => (await commandCalls('inspect_installation')).length;
 const waitIdle = () => page.waitForFunction(() => ![...document.querySelectorAll('nav button')].find(e => e.textContent === 'A jornada')?.disabled);
 const commandCalls = name => page.evaluate(name => window.__testBridge.calls.filter(call => call.command === name), name);
 const pending = () => page.waitForFunction(() => window.__testBridge.pending !== null);
@@ -86,11 +43,12 @@ const finish = async status => { await page.evaluate(status => window.__testBrid
 const install = async () => { await button('Revisar instalação').click(); await button('Instalar componentes').click(); await pending(); };
 try {
   await page.goto('http://127.0.0.1:1496/'); await waitIdle(); await shot('01-jornada');
-  check('Abertura sem rolagem em 1240x800', await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1));
+  check('Abertura sem rolagem em 1240x800', await fits());
+  check('Inicialização inspeciona os arquivos uma única vez', await inspections() === 1);
   check('Sem aplicação automática ao iniciar', (await commandCalls('apply_mod')).length === 0);
   check('Sem abertura automática do jogo ao iniciar', (await commandCalls('launch_game')).length === 0);
   await button('Preparar instalação').click(); await shot('02-componentes');
-  check('Componentes e ações cabem na janela inicial', await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1));
+  check('Componentes e ações cabem na janela inicial', await fits());
   check('Componentes refletem disponibilidade do pacote', await page.getByRole('checkbox', { name: 'Texturas de outro reino' }).isDisabled());
   check('Componente experimental disponível permanece opcional', await page.getByRole('checkbox', { name: 'Símbolos do mundo antigo' }).isEnabled() && !await page.getByRole('checkbox', { name: 'Símbolos do mundo antigo' }).isChecked());
   await page.getByRole('checkbox', { name: 'Um novo olhar para o abismo' }).uncheck();
@@ -130,9 +88,9 @@ try {
   await finish('cancel');
   check('Cancelamento não oferece abertura do jogo', await button('Abrir jogo').count() === 0);
   check('Cancelamento informa componentes parciais', await page.getByRole('heading', { name: 'Jornada interrompida.' }).isVisible() && await page.getByText('A interrupção não desfaz componentes já aplicados.', { exact: false }).isVisible());
-  check('Estado é inspecionado após cancelamento', (await commandCalls('inspect_game')).length >= 2);
+  check('Estado é inspecionado uma vez após cancelamento', await inspections() === 2);
   await button('Componentes').click(); await install();
-  await page.evaluate(() => { window.__testBridge.fail.diagnose = 'Falha de diagnóstico após aplicação'; });
+  await page.evaluate(() => { window.__testBridge.fail.diagnostics = 'Falha de diagnóstico após aplicação'; });
   await finish('success');
   check('Falha de diagnóstico não reclassifica instalação concluída', await page.getByRole('heading', { name: 'Componentes aplicados.' }).isVisible());
   check('Instalação concluída oferece Abrir jogo sem exigir DualSense', await button('Abrir jogo').isEnabled());
@@ -145,14 +103,16 @@ try {
   await page.evaluate(() => window.__testBridge.finishLaunch('Não foi possível abrir o jogo: acesso negado.'));
   await waitIdle();
   check('Falha ao abrir permite nova tentativa e mantém instalação concluída', await button('Abrir jogo').isEnabled() && await page.getByText('Não foi possível abrir o jogo: acesso negado.', { exact: true }).isVisible() && await page.getByRole('heading', { name: 'Componentes aplicados.' }).isVisible());
-  await page.evaluate(() => { delete window.__testBridge.fail.diagnose; });
+  await page.evaluate(() => { delete window.__testBridge.fail.diagnostics; });
   await button('Abrir jogo').focus(); await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.__testBridge.launchPending !== null);
   await page.evaluate(() => window.__testBridge.finishLaunch()); await waitIdle();
   check('Abertura por teclado atualiza estado e impede iniciar outra instância', await button('Jogo já está aberto').isDisabled() && (await commandCalls('launch_game')).length === 2 && (await commandCalls('launch_controller_game')).length === 0);
   await page.evaluate(() => { window.__testBridge.controller.running = false; });
   await button('Ver restauração').click();
+  const beforeRefresh = await inspections();
   await button('Atualizar diagnóstico').click(); await waitIdle();
+  check('Atualizar o diagnóstico custa uma inspeção', await inspections() === beforeRefresh + 1);
   await button('Reparar componentes').click(); await button('Reparar agora').click(); await pending();
   check('Reparo mantém comando existente', (await commandCalls('repair_mod')).length === 1);
   await finish('success');
@@ -179,7 +139,7 @@ try {
   await button('Componentes').click();
   check('Edição incompatível bloqueia instalação', await button('Revisar instalação').isDisabled());
   await button('A jornada').click(); await shot('10-erro-de-inspecao');
-  check('Erro de inspeção e recuperação cabem na abertura', await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight + 1) && await button('Ver opções de recuperação').isVisible());
+  check('Erro de inspeção e recuperação cabem na abertura', await fits() && await button('Ver opções de recuperação').isVisible());
   await button('Restauração').click();
   check('Falha de inspeção mantém recuperação acessível', await button('Restaurar tudo').isEnabled());
   await button('Restaurar tudo').click();
@@ -207,6 +167,7 @@ try {
   check('Componentes sem overflow horizontal em 390px', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   await page.emulateMedia({ reducedMotion: 'reduce' });
   check('Movimento reduzido respeitado', await page.locator('.primary').first().evaluate(e => getComputedStyle(e).transitionDuration === '0s'));
+  check('Movimento reduzido desliga animações ambientes e de entrada', await page.evaluate(() => document.getAnimations().length === 0));
   check('Nenhuma requisição externa', external.length === 0);
   check('Console sem erros', errors.length === 0);
   await writeFile(join(output, 'report.json'), JSON.stringify({ target: 'Production React UI, Chromium, controlled Tauri transport', simulatedBackend: true, gameLaunched: false, checks, errors, external }, null, 2));

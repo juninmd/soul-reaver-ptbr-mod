@@ -1,4 +1,5 @@
-import type { IconName } from './installer-model';
+import type { IconName } from '../installer/model';
+
 const paths: Record<IconName, string> = {
   arrow: 'M4 12h15m-6-6 6 6-6 6', check: 'm5 12 4 4L19 6', folder: 'M3 7V5h6l3 3h9v11H3V7Z',
   shield: 'M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3Zm-4 9 3 3 5-6',
@@ -9,7 +10,13 @@ const paths: Record<IconName, string> = {
   close: 'm6 6 12 12M6 18 18 6', minus: 'M5 12h14', maximize: 'M5 5h14v14H5V5Z',
   pause: 'M8 5v14M16 5v14', play: 'm8 4 12 8-12 8V4Z', settings: 'M4 7h16M4 17h16M8 4v6M16 14v6',
   spark: 'm12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z',
+  alert: 'M12 3 2 20h20L12 3Zm0 6v5m0 3v.5',
 };
+
 export default function Icon({ name, className = '' }: { name: IconName; className?: string }) {
-  return <svg className={`icon ${className}`} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
+  return (
+    <svg className={`icon ${className}`} width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={paths[name]} />
+    </svg>
+  );
 }

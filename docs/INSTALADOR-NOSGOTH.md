@@ -46,18 +46,31 @@ válidos permitem restaurar; a decisão final e a recusa de conflitos pertencem 
 
 ## Fontes
 
-| Arquivo | Responsabilidade |
+| Caminho | Responsabilidade |
 | --- | --- |
-| `installer/src/App.tsx` | Navegação, telas, diálogos e controles de janela |
-| `installer/src/use-installer.ts` | IPC, eventos, consultas e ciclo das operações |
-| `installer/src/installer-model.ts` | Tipos, disponibilidade, escolhas efetivas e progresso por etapa |
-| `installer/src/dualsense-panel.tsx` | Apresentação do suporte ao controle e mapeamento |
-| `installer/src/icon.tsx` | Ícones vetoriais |
-| `installer/src/tokens.css`, `nosgoth.css`, `index.css` | Paleta, composição aprovada e estados da interface |
+| `installer/src/app/` | Casca do aplicativo (`app.tsx`), navegação com transição entre telas e estado derivado das operações |
+| `installer/src/screens/` | Uma tela por arquivo: jornada, componentes, operação, restauração e diagnóstico |
+| `installer/src/dialogs/app-dialogs.tsx` | Conteúdo de cada confirmação exibida no diálogo modal |
+| `installer/src/components/` | Peças reutilizadas: barra de título, navegação, local do jogo, avisos, modal, cena de Nosgoth, painel DualSense e ícones |
+| `installer/src/installer/model.ts` | Tipos do IPC e regras puras: disponibilidade, escolhas efetivas e progresso por etapa |
+| `installer/src/installer/ipc.ts` | Fronteira tipada com os comandos Rust |
+| `installer/src/installer/use-installer.ts` | Eventos, consultas, travas e ciclo das operações |
+| `installer/src/styles/` | `tokens.css` (paleta, tipografia, tempos), `base`, `shell`, `components`, `scene`, `screens`, `dialogs` e `motion` |
 | `installer/public/nosgoth.svg` | Ilustração original, sem dependência de rede |
-| `installer/src-tauri/src/main.rs` | Comandos existentes; consultas pesadas executadas em `spawn_blocking` |
-| `installer/src-tauri/src/game_launch.rs` | Validação do executável e abertura na pasta selecionada, sem exigir controle |
+| `installer/src-tauri/src/commands.rs` | Comandos IPC; trabalho bloqueante fora da thread da interface |
+| `installer/src-tauri/src/transactions.rs` | Ordem e pré-validação de instalar, restaurar e reparar |
+| `installer/src-tauri/src/diagnostics.rs` | Relatório de passagem única: estado do jogo, diagnóstico e controle |
+| `installer/src-tauri/src/operation.rs` | Operação única em andamento, pausa/cancelamento e eventos de progresso com taxa limitada |
+| `installer/src-tauri/src/bundle.rs`, `detect.rs`, `paths.rs` | Pacote e seus layouts, bibliotecas Steam e pastas de backup/log |
+| `installer/src-tauri/src/controller.rs`, `game_launch.rs` | Acompanhante DualSense e abertura do jogo na pasta selecionada |
+| `installer/src-tauri/src/cli.rs` | Modos de linha de comando |
 | `installer/src-tauri/tauri.conf.json`, `capabilities/default.json` | Janela e permissões dos controles |
+
+A interface pede ao backend um único relatório por atualização
+(`inspect_installation`); o estado do jogo, o diagnóstico e o controle derivam da
+mesma inspeção dos arquivos. A descrição do pacote é verificada ao abrir e em
+**Verificar pacote novamente**; a instalação confere cada payload outra vez antes
+de gravar.
 
 As regras de integridade, propriedade, backup e restauração continuam no core.
 Não há dados demonstrativos, temporizadores de progresso simulado nem caminhos
@@ -95,8 +108,9 @@ Em outro terminal:
 node tools/verify_installer_ui.mjs
 ```
 
-Esse verificador usa Playwright e Chromium **já instalados** e registrados em
-`%LOCALAPPDATA%/ms-playwright/.links`; não baixa dependências. Ele executa o
+Esse verificador usa Playwright e Chromium **já instalados** (módulo `playwright`
+resolvível pelo Node ou registrado em `%LOCALAPPDATA%/ms-playwright/.links`); não
+baixa dependências. Ele executa o
 frontend real com um transporte Tauri controlado, apenas no processo de teste.
 O relatório identifica o backend simulado. Isso verifica a interface e os
 argumentos IPC, sem comprovar por si só a aplicação real de arquivos.
