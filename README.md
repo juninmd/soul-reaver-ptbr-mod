@@ -180,8 +180,8 @@ Cada componente tem seu próprio registro de propriedade e restauração.
 
 ```mermaid
 flowchart LR
-    UI["installer/src<br/>React: App.tsx, use-installer.ts"] -->|invoke| TAURI["installer/src-tauri/src/main.rs<br/>comandos Tauri, game_launch.rs, controller.rs"]
-    TAURI --> CORE["crates/mod-core/src/lib.rs<br/>SHA-256, journals, travas"]
+    UI["installer/src<br/>React: app/, screens/, installer/use-installer.ts"] -->|invoke| TAURI["installer/src-tauri/src<br/>commands.rs, transactions.rs, diagnostics.rs"]
+    TAURI --> CORE["crates/mod-core/src<br/>voices, assets, external, graphics, fsx"]
     CLI["crates/mod-core/src/bin/srmod.rs<br/>CLI srmod"] --> CORE
     CORE -->|"hash, backup, aplicar, restaurar"| GAME[("Pasta do jogo<br/>cópia Steam Classic")]
     TOOLS["tools/<br/>extração, síntese, empacotamento"] -.->|"payloads"| MODS["modules/ (local, fora do Git)"]

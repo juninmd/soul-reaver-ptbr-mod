@@ -1,4 +1,6 @@
 use super::*;
+use crate::{fsx::plain, is_game_running};
+use std::io::Read;
 use tempfile::tempdir;
 
 fn make_exe(table_entries: &[(u32, u32)]) -> Vec<u8> {
@@ -628,7 +630,10 @@ fn test_is_game_running_synthetic_child() {
     let _ = child.kill();
     let _ = child.wait();
 
-    assert!(running, "is_game_running should return true when kain2.exe process is active");
+    assert!(
+        running,
+        "is_game_running should return true when kain2.exe process is active"
+    );
 
     let mut stopped = false;
     for _ in 0..20 {
@@ -638,7 +643,10 @@ fn test_is_game_running_synthetic_child() {
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
-    assert!(stopped, "is_game_running should return false after process termination");
+    assert!(
+        stopped,
+        "is_game_running should return false after process termination"
+    );
 }
 
 #[test]
@@ -681,5 +689,231 @@ fn managed_file_links_and_directory_junctions_are_refused_when_available() {
     let dir_link = root.path().join("directory-link");
     if symlink_dir(&target_dir, &dir_link).is_ok() {
         assert!(plain(&dir_link).unwrap_err().contains("Links"));
+    }
+}
+
+/// A package with `count` single-slot patches over the safety fixture layout.
+fn write_package(dir: &Path, policy: &Policy, count: usize) -> PathBuf {
+    let mut candidate = vec![0x11u8; COUNT * 2];
+    let patches = (0..count)
+        .map(|id| {
+            let payload = [0x80 + (id % 100) as u8, 0x22];
+            let file = format!("voice-{id:04}.pcm");
+            fs::write(dir.join(&file), payload).unwrap();
+            candidate[id * 2..id * 2 + 2].copy_from_slice(&payload);
+            Patch {
+                id,
+                file,
+                sha256: sha(&payload),
+                length: 2,
+            }
+        })
+        .collect();
+    let manifest = Manifest {
+        schema: 1,
+        id: "sr1-ptbr-review".into(),
+        name: "Parallel fixture".into(),
+        version: "1".into(),
+        exe_sha256: policy.exe.into(),
+        source_sha256: policy.voices.into(),
+        result_sha256: sha(&candidate),
+        patches,
+        coverage: Coverage {
+            replaced: count,
+            total: COUNT,
+            complete: count == COUNT,
+        },
+    };
+    let path = dir.join("manifest.json");
+    fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    path
+}
+
+#[test]
+fn parallel_package_verification_reports_the_first_failure_in_manifest_order() {
+    let root = tempdir().unwrap();
+    let (game, _, policy) = safety_fixture(root.path());
+    let dir = root.path().join("package-parallel");
+    fs::create_dir(&dir).unwrap();
+    let path = write_package(&dir, &policy, 64);
+    let (_, payloads, _) = package(&path, &policy).unwrap();
+    assert_eq!(payloads.len(), 64);
+    assert_eq!(payloads[63], [0x80 + 63, 0x22]);
+
+    // Two defects: the earlier entry decides the message, whichever worker saw it.
+    let mut manifest: Manifest = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    manifest.patches[60].file = "../voice-0060.pcm".into();
+    fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    fs::write(dir.join("voice-0003.pcm"), b"xx").unwrap();
+    let error = package(&path, &policy).err().unwrap();
+    assert!(error.contains("integridade"), "{error}");
+
+    fs::write(dir.join("voice-0003.pcm"), [0x83, 0x22]).unwrap();
+    let error = package(&path, &policy).err().unwrap();
+    assert!(error.contains("caminho de pacote não permitido"), "{error}");
+    assert_eq!(
+        fs::read(game.join("voices.dat")).unwrap(),
+        vec![0x11; COUNT * 2]
+    );
+}
+
+#[test]
+fn apply_never_marks_installed_when_the_backup_does_not_verify() {
+    let root = tempdir().unwrap();
+    let (game, manifest, policy) = safety_fixture(root.path());
+    let control = OperationControl::default();
+    let backup = game.join(MANAGER).join("voices.original.dat");
+    // The backup is damaged after it was written and before the final proof.
+    let error = apply_with_control(&game, &manifest, &policy, &control, |progress| {
+        if progress.stage == "instalacao" {
+            fs::write(&backup, b"damaged backup").unwrap();
+        }
+    })
+    .unwrap_err();
+    assert!(error.contains("Conflito"), "{error}");
+    assert_eq!(journal(&game, &policy).unwrap().unwrap().phase, "preparing");
+}
+
+#[test]
+fn streamed_hash_matches_the_in_memory_hash_and_enforces_the_limit() {
+    use crate::fsx::sha_file;
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("archive.bin");
+    let bytes = crate::test_support::noise(7, 3 * 1024 * 1024 + 17);
+    fs::write(&path, &bytes).unwrap();
+    assert_eq!(
+        sha_file(&path, bytes.len() as u64).unwrap(),
+        (sha(&bytes), bytes.len() as u64)
+    );
+    assert_eq!(
+        sha_file(&path, bytes.len() as u64 - 1).unwrap_err(),
+        "Arquivo excede o limite permitido."
+    );
+    fs::write(&path, b"").unwrap();
+    assert_eq!(sha_file(&path, 16).unwrap(), (sha(b""), 0));
+}
+
+/// Full-size synthetic fixture: 479 slots covering exactly `VOICES_BYTES`.
+/// Run with `cargo test --release -p soul-reaver-mod-core -- --ignored bench_ --nocapture --test-threads 1`.
+#[test]
+#[ignore = "benchmark: writes ~600 MB of temporary data"]
+fn bench_voice_pipeline() {
+    use crate::test_support::{best_ms, elapsed_ms, noise, peak_rss_mb};
+    use std::time::Instant;
+
+    let total = VOICES_BYTES as usize;
+    let slot = (total / COUNT) & !1;
+    let entries: Vec<(u32, u32)> = (0..COUNT)
+        .map(|i| {
+            let length = if i == COUNT - 1 {
+                total - slot * (COUNT - 1)
+            } else {
+                slot
+            };
+            ((i * slot) as u32, length as u32)
+        })
+        .collect();
+    let exe = make_exe(&entries);
+    let original = noise(0x5eed, total);
+    let exe_hash = sha(&exe);
+    let voices_hash = sha(&original);
+    let policy = Policy {
+        exe: &exe_hash,
+        voices: &voices_hash,
+    };
+
+    let dir = tempdir().unwrap();
+    let game = dir.path().join("game");
+    let pack = dir.path().join("package");
+    fs::create_dir(&game).unwrap();
+    fs::create_dir(&pack).unwrap();
+    fs::write(game.join("kain2.exe"), &exe).unwrap();
+    fs::write(game.join("voices.dat"), &original).unwrap();
+
+    let mut patched = original.clone();
+    let mut patches = Vec::new();
+    for (id, &(offset, length)) in entries.iter().enumerate() {
+        let payload = noise(0xd0b + id as u64, length as usize);
+        let file = format!("voice-{id:04}.pcm");
+        fs::write(pack.join(&file), &payload).unwrap();
+        patched[offset as usize..(offset + length) as usize].copy_from_slice(&payload);
+        patches.push(Patch {
+            id,
+            file,
+            sha256: sha(&payload),
+            length: length as usize,
+        });
+    }
+    let manifest = Manifest {
+        schema: 1,
+        id: "sr1-ptbr-full".into(),
+        name: "Benchmark".into(),
+        version: "0.0.0".into(),
+        exe_sha256: exe_hash.clone(),
+        source_sha256: voices_hash.clone(),
+        result_sha256: sha(&patched),
+        patches,
+        coverage: Coverage {
+            replaced: COUNT,
+            total: COUNT,
+            complete: true,
+        },
+    };
+    drop(patched);
+    let manifest_path = pack.join("manifest.json");
+    fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+
+    let megabytes = total as f64 / 1_048_576.0;
+    let hash_ms = best_ms(3, || {
+        std::hint::black_box(sha(&original));
+    });
+    drop(original);
+    println!(
+        "BENCH sha256_throughput_mb_s {:.0}",
+        megabytes / (hash_ms / 1000.0)
+    );
+
+    let inspect_original = best_ms(5, || {
+        assert_eq!(inspect_with(&game, &policy).unwrap().status, "original");
+    });
+    println!("BENCH voices_inspect_original_ms {inspect_original:.0}");
+    let package_ms = best_ms(5, || {
+        package(&manifest_path, &policy).unwrap();
+    });
+    println!("BENCH voices_verify_package_ms {package_ms:.0}");
+
+    let (mut apply_ms, mut restore_ms, mut inspect_installed) =
+        (f64::INFINITY, f64::INFINITY, f64::INFINITY);
+    let (mut apply_peak, mut inspect_peak, mut restore_peak) = (None, None, None);
+    for _ in 0..3 {
+        let start = Instant::now();
+        let (info, peak) =
+            peak_rss_mb(|| apply_with(&game, &manifest_path, &policy, |_| {}).unwrap());
+        apply_ms = apply_ms.min(elapsed_ms(start));
+        apply_peak = peak;
+        assert_eq!((info.status.as_str(), info.replaced), ("installed", COUNT));
+        let ((), peak) = peak_rss_mb(|| {
+            inspect_installed = inspect_installed.min(best_ms(3, || {
+                assert_eq!(inspect_with(&game, &policy).unwrap().replaced, COUNT);
+            }));
+        });
+        inspect_peak = peak;
+        let start = Instant::now();
+        let (info, peak) = peak_rss_mb(|| restore_with(&game, &policy, |_| {}).unwrap());
+        restore_ms = restore_ms.min(elapsed_ms(start));
+        restore_peak = peak;
+        assert_eq!(info.status, "original");
+    }
+    println!("BENCH voices_apply_full_package_ms {apply_ms:.0}");
+    println!("BENCH voices_inspect_installed_ms {inspect_installed:.0}");
+    println!("BENCH voices_restore_ms {restore_ms:.0}");
+    for (name, peak) in [
+        ("apply", apply_peak),
+        ("inspect_installed", inspect_peak),
+        ("restore", restore_peak),
+    ] {
+        if let Some(peak) = peak {
+            println!("BENCH voices_{name}_peak_rss_mb {peak:.0}");
+        }
     }
 }

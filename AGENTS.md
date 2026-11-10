@@ -28,6 +28,9 @@ Preservar o jogo original e os saves. Separar fatos observados, propostas e vali
 - Testes de integridade e transação do core: `cargo test -p soul-reaver-mod-core` (fixtures isolados, piloto, assets e recusa do antigo pacote com cobertura fictícia 479/479).
 - CLI de inspeção/modificação: `cargo run -p soul-reaver-mod-core --bin srmod -- [inspect <game> | apply <game> <manifest> | restore <game>]`.
 - Build do frontend do instalador: `pnpm --dir installer build` (TypeScript e Vite).
+- Benchmarks do core (fixtures sintéticos, ~1 GB temporário): `cargo test --release -p soul-reaver-mod-core -- --ignored bench_ --nocapture --test-threads 1`.
+- Regressão da interface com IPC simulado: `node tools/verify_installer_ui.mjs` (ver `docs/INSTALADOR-NOSGOTH.md`).
+- Fumaça do instalador real no Linux (Xvfb, sem pacote e sem jogo): `tools/verify_installer_native.sh`.
 - Extração de catálogo: `python tools/audio_pipeline.py catalogue --game <pasta-jogo> --output <pasta-saida>`.
 - Empacotamento de vozes aprovadas: `python tools/audio_pipeline.py package --game <pasta-jogo> --plan <plano.json> --output <pasta-pacote>`.
 - Benchmark e produção de voz na GPU: `python tools/generate_voices.py --plan <plano.json> --model <caminho-modelo> --model-revision <rev> --output <pasta-saida> [--benchmark]`.
@@ -35,8 +38,8 @@ Preservar o jogo original e os saves. Separar fatos observados, propostas e vali
 ## Estrutura
 
 - `Cargo.toml`: Workspace Rust contendo `crates/mod-core` e `installer/src-tauri`.
-- `crates/mod-core/`: Biblioteca Rust e binário CLI `srmod`.
-- `installer/`: Aplicativo desktop Tauri 2 com interface React/TypeScript/Tailwind.
+- `crates/mod-core/`: Biblioteca Rust e binário CLI `srmod`. Um módulo por componente (`voices`, `assets`, `external`, `graphics`); `fsx` concentra E/S protegida, SHA-256 por streaming, escrita atômica e a trava de operação; `operation` e `process` cobrem progresso/controle e detecção do jogo aberto.
+- `installer/`: Aplicativo desktop Tauri 2 com interface React/TypeScript/Tailwind. Frontend em `src/{app,screens,dialogs,components,installer,styles}`; backend em `src-tauri/src` (`commands`, `transactions`, `diagnostics`, `operation`, `bundle`, `detect`, `controller`, `game_launch`, `cli`, `paths`).
 - `tools/`: Scripts de catálogo, empacotamento e síntese TTS offline.
 - `docs/`: `PLANO-MOD-4K-PTBR.md` e `VALIDACAO-REINSERCAO-VOZ.md`.
 - `REFERENCES.md`: Registro de ferramentas, repositórios e documentação citada.

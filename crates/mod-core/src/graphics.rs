@@ -9,10 +9,27 @@
 //! D3D11/D3D12), but nothing here proves a frame was presented. Resolution,
 //! vertical sync, frame limit and window attributes are chosen before installing
 //! so the shipped configuration matches the machine instead of a fixed 4K value.
-use super::*;
-use std::collections::HashSet;
+use crate::{
+    EXE_SHA256, EXE_WIDESCREEN_SHA256, MANAGER, Result,
+    fsx::{
+        JOURNAL_LIMIT, atomic_write, chain, io, is_sha256, lock_operation, plain, read, sha,
+        supported_game_dir,
+    },
+    operation::{OperationControl, Progress},
+    process::ensure_closed,
+};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashSet,
+    fs::{self, File},
+    path::{Path, PathBuf},
+};
 
 const STATE: &str = "graphics-state.json";
+/// Field-of-view constant rewritten by the Hor+ 16:9 patch.
+const FOV_OFFSET: usize = 0xeb354;
+const FOV_ORIGINAL: [u8; 4] = [0x00, 0x00, 0x20, 0x3f];
+const FOV_16_9: [u8; 4] = [0x00, 0x00, 0xf0, 0x3e];
 const EXE_BACKUP: &str = "kain2.graphics-original.exe";
 const WRAPPER: [&str; 5] = [
     "DDraw.dll",
@@ -261,51 +278,14 @@ struct State {
     render: Option<RenderRecord>,
 }
 
-fn ok_hash(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
-fn chain(path: &Path) -> Result<()> {
-    for part in path.ancestors() {
-        match fs::symlink_metadata(part) {
-            Ok(_) => plain(part)?,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-            Err(e) => return Err(e.to_string()),
-        }
-    }
-    Ok(())
-}
-
 fn lock(game: &Path) -> Result<File> {
-    let root = game.join(MANAGER);
-    chain(&root)?;
-    if !root.exists() {
-        io(fs::create_dir(&root))?;
-    }
-    let path = root.join("operation.lock");
-    chain(&path)?;
-    let file = io(OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(path))?;
-    file.try_lock_exclusive()
-        .map_err(|_| "Outra instalação está em andamento.".to_string())?;
-    Ok(file)
+    lock_operation(game)
 }
 
 fn game_path(game: &Path) -> Result<PathBuf> {
-    chain(game)?;
-    let game = io(game.canonicalize())?;
-    let exe = sha(&read(&game.join("kain2.exe"), LIMIT)?);
-    if exe != EXE_SHA256 && exe != EXE_WIDESCREEN_SHA256 {
-        return Err("Executável incompatível com o perfil gráfico.".into());
-    }
-    Ok(game)
+    supported_game_dir(game, || {
+        "Executável incompatível com o perfil gráfico.".into()
+    })
 }
 
 fn load(game: &Path) -> Result<State> {
@@ -321,20 +301,20 @@ fn load(game: &Path) -> Result<State> {
             render: None,
         });
     }
-    let state: State = serde_json::from_slice(&read(&path, 128 * 1024)?)
+    let state: State = serde_json::from_slice(&read(&path, JOURNAL_LIMIT)?)
         .map_err(|e| format!("Registro gráfico inválido: {e}"))?;
     if state.schema != 1
         || io(state.game.canonicalize())? != game
         || !["original", "preparing", "installed", "restored"].contains(&state.phase.as_str())
         || state.files.iter().any(|i| {
             !WRAPPER.contains(&i.file.as_str())
-                || !ok_hash(&i.result_sha256)
-                || i.previous_sha256.as_ref().is_some_and(|h| !ok_hash(h))
+                || !is_sha256(&i.result_sha256)
+                || i.previous_sha256.as_ref().is_some_and(|h| !is_sha256(h))
         })
         || state
             .exe
             .as_ref()
-            .is_some_and(|e| !ok_hash(&e.original_sha256) || !ok_hash(&e.patched_sha256))
+            .is_some_and(|e| !is_sha256(&e.original_sha256) || !is_sha256(&e.patched_sha256))
         || state.render.as_ref().is_some_and(|r| {
             validate_resolution(&r.resolution).is_err() || r.fps_limit > MAX_FPS_LIMIT
         })
@@ -521,6 +501,7 @@ fn apply_checked_control(
                 format!("Instalando {name}")
             },
         });
+        // A handful of files next to the executable: always a fresh scan.
         ensure_closed(game)?;
         atomic_write(&game.join(name), bytes)?;
         progress(Progress {

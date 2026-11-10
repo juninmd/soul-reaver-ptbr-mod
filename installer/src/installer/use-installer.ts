@@ -1,11 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { isTauri } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
-import { effectiveOptions, hasInstallation, initialOptions, initialRender, type ApplyOptions, type BundleInfo, type ControllerStatus, type Diagnostics, type DisplayProfile, type GameInfo, type Operation, type OperationKind, type OperationProgress, type RenderSettings } from './installer-model';
+import { ipc } from './ipc';
+import {
+  effectiveOptions, errorText, hasInstallation, initialOptions, initialRender,
+  type ApplyOptions, type BundleInfo, type ControllerAction, type ControllerStatus, type Diagnostics,
+  type DisplayProfile, type GameInfo, type Operation, type OperationKind, type OperationProgress, type RenderSettings,
+} from './model';
 
-export type ControllerAction = 'refresh' | 'install' | 'remove' | 'launch';
-
+/**
+ * State and actions of the installer.
+ *
+ * Three guards serialize the work, as refs because they must be read in the
+ * same tick they are set:
+ * - `lock`: a query or an operation is running; nothing else may start.
+ * - `mutation`: files may be written; closing the window is intercepted.
+ * - `controlLock`: a pause/resume/cancel request is in flight.
+ */
 export function useInstaller() {
   const [gamePath, setGamePath] = useState('');
   const [gameInfo, setGameInfo] = useState<GameInfo | null>(null);
@@ -34,28 +46,20 @@ export function useInstaller() {
   const activeOperation = useRef(false);
 
   // Read-only refresh after every outcome, including partial failure/cancellation.
+  // The backend inspects the files once and derives the three views from it.
   async function readGame(path: string, clear: boolean) {
     if (clear) { setGamePath(path); setGameInfo(null); setDiagnostics(null); setController(null); }
-    const [inspection, diagnosis, control] = await Promise.allSettled([
-      invoke<GameInfo>('inspect_game', { path }),
-      invoke<Diagnostics>('diagnose', { gamePath: path }),
-      invoke<ControllerStatus>('get_controller_status', { gamePath: path }),
-    ]);
-    setGameInfo(inspection.status === 'fulfilled' ? inspection.value : null);
-    setDiagnostics(diagnosis.status === 'fulfilled' ? diagnosis.value : null);
-    setController(control.status === 'fulfilled' ? control.value : null);
-    if (inspection.status === 'rejected') throw new Error(String(inspection.reason));
-    const failures = [diagnosis, control].flatMap(item => item.status === 'rejected' ? [String(item.reason)] : []);
-    if (failures.length) setNotice(`Algumas verificações não puderam ser concluídas: ${[...new Set(failures)].join(' · ')}`);
+    const report = await ipc.inspectInstallation(path);
+    setGameInfo(report.game);
+    setDiagnostics(report.diagnostics);
+    setController(report.controller);
+    if (!report.game) throw new Error(report.error ?? 'Não foi possível inspecionar a instalação.');
+    if (report.warnings.length) setNotice(`Algumas verificações não puderam ser concluídas: ${[...new Set(report.warnings)].join(' · ')}`);
   }
 
   useEffect(() => {
     let disposed = false;
-    const unlisteners: UnlistenFn[] = [];
-    async function bind<T>(name: string, handler: (payload: T) => void) {
-      const unlisten = await listen<T>(name, event => { if (!disposed && activeOperation.current) handler(event.payload); });
-      if (disposed) unlisten(); else unlisteners.push(unlisten);
-    }
+    let unlisten: (() => void) | undefined;
     async function initialize() {
       if (!isTauri()) {
         setError('Abra o aplicativo desktop para localizar o jogo e gerenciar a instalação.');
@@ -63,41 +67,40 @@ export function useInstaller() {
         return;
       }
       try {
-        await Promise.all([
-          bind<OperationProgress>('progress', payload => { setProgress(payload); setMessage(payload.message); }),
-          bind<string>('progress-message', setMessage),
-        ]);
-        if (disposed) return;
+        const stop = await listen<OperationProgress>('progress', event => {
+          if (disposed || !activeOperation.current) return;
+          setProgress(event.payload); setMessage(event.payload.message);
+        });
+        if (disposed) { stop(); return; }
+        unlisten = stop;
         setListenersReady(true);
         // A missing/invalid package must not hide a detected installation or recovery.
-        const [detected, foundBundle, profile] = await Promise.allSettled([
-          invoke<string | null>('detect_game'), invoke<BundleInfo>('get_bundle_info'), invoke<DisplayProfile>('get_display_profile'),
-        ]);
+        const [detected, foundBundle, profile] = await Promise.allSettled([ipc.detectGame(), ipc.bundleInfo(), ipc.displayProfile()]);
         if (disposed) return;
         if (foundBundle.status === 'fulfilled') setBundle(foundBundle.value);
-        else setBundleError(String(foundBundle.reason));
+        else setBundleError(errorText(foundBundle.reason));
         if (profile.status === 'fulfilled') setDisplay(profile.value);
         if (detected.status === 'fulfilled' && detected.value) await readGame(detected.value, true);
-        else if (detected.status === 'rejected') setError(String(detected.reason));
+        else if (detected.status === 'rejected') setError(errorText(detected.reason));
       } catch (err) {
-        if (!disposed) setError(String(err));
+        if (!disposed) setError(errorText(err));
       } finally {
         if (!disposed) { setLoading(false); lock.current = false; }
       }
     }
     void initialize();
-    return () => { disposed = true; unlisteners.forEach(unlisten => unlisten()); };
+    return () => { disposed = true; unlisten?.(); };
   }, []);
 
+  /** Runs a read-only task under the shared lock, surfacing its failure as the page error. */
   async function query(task: () => Promise<void>) {
     if (lock.current || controlLock.current) return;
     lock.current = true; setLoading(true); setError(null); setNotice('');
-    try { await task(); } catch (err) { setError(String(err)); }
+    try { await task(); } catch (err) { setError(errorText(err)); }
     finally { setLoading(false); lock.current = false; }
   }
   async function inspect(path: string) {
-    if (!path.trim()) return;
-    await query(() => readGame(path.trim(), true));
+    if (path.trim()) await query(() => readGame(path.trim(), true));
   }
   async function chooseFolder() {
     await query(async () => {
@@ -105,21 +108,27 @@ export function useInstaller() {
       if (typeof selected === 'string') await readGame(selected, true);
     });
   }
-  async function reloadBundle() {
-    await query(async () => {
-      setBundleError(null); setBundle(null);
-      try { setBundle(await invoke<BundleInfo>('get_bundle_info')); }
-      catch (err) { setBundleError(String(err)); }
-    });
+  // Verifies the package on disk again; the backend reuses that description
+  // in every diagnosis until the next explicit verification.
+  async function verifyBundle() {
+    setBundleError(null); setBundle(null);
+    try { setBundle(await ipc.bundleInfo()); }
+    catch (err) { setBundleError(errorText(err)); }
   }
-  async function refresh() { if (gamePath) await query(() => readGame(gamePath, true)); }
+  const reloadBundle = () => query(verifyBundle);
+  /** The user asked for the current state: package and installation are both read from disk. */
+  async function refresh() {
+    if (gamePath) await query(async () => { await verifyBundle(); await readGame(gamePath, true); });
+  }
 
   const selectedOptions = effectiveOptions(options, bundle);
-  const readyToApply = !!gameInfo && ['original', 'installed'].includes(gameInfo.status) && !!bundle && listenersReady && diagnostics?.exeSupported === true && diagnostics.gameClosed && Object.values(selectedOptions).some(Boolean);
+  const readyToApply = !!gameInfo && ['original', 'installed'].includes(gameInfo.status) && !!bundle && listenersReady
+    && diagnostics?.exeSupported === true && diagnostics.gameClosed && Object.values(selectedOptions).some(Boolean);
   const anyInstalled = hasInstallation(gameInfo, controller);
   const running = operation?.status === 'running';
   const busy = loading || running || controlPending || launching;
-  const canLaunchGame = !busy && !!gameInfo && operation?.kind === 'install' && operation.status === 'succeeded' && operation.path === gamePath && diagnostics?.gameClosed !== false && controller?.running !== true;
+  const gameClosed = diagnostics?.gameClosed !== false && controller?.running !== true;
+  const canLaunchGame = !busy && !!gameInfo && operation?.kind === 'install' && operation.status === 'succeeded' && operation.path === gamePath && gameClosed;
 
   async function launchGame() {
     if (lock.current || controlLock.current || !canLaunchGame || !operation) return;
@@ -127,11 +136,11 @@ export function useInstaller() {
     lock.current = true; mutation.current = true;
     setLaunching(true); setError(null); setNotice('');
     try {
-      await invoke('launch_game', { gamePath: path });
+      await ipc.launchGame(path);
       setNotice('Jogo aberto.');
       try { await readGame(path, false); }
-      catch (err) { setNotice(`Jogo aberto. Não foi possível atualizar o diagnóstico: ${String(err)}`); }
-    } catch (err) { setError(String(err)); }
+      catch (err) { setNotice(`Jogo aberto. Não foi possível atualizar o diagnóstico: ${errorText(err)}`); }
+    } catch (err) { setError(errorText(err)); }
     finally { setLaunching(false); lock.current = false; mutation.current = false; }
   }
 
@@ -142,20 +151,11 @@ export function useInstaller() {
     setOperation({ kind, path, status: 'running' }); setError(null); setNotice('');
     setProgress(null); setMessage('Preparando operação…'); setPaused(false); setStopping(false);
     try {
-      const command = kind === 'install' ? 'apply_mod' : kind === 'repair' ? 'repair_mod' : 'restore_mod';
-      const applyOptions = {
-        ...selectedOptions,
-        vsync: render.vsync,
-        fpsLimit: render.fpsLimit,
-        alwaysOnTop: render.alwaysOnTop,
-        renderResolution: render.resolution,
-      };
-      const updated = await invoke<GameInfo>(command, kind === 'install' ? { gamePath: path, options: applyOptions } : { gamePath: path });
-      setGameInfo(updated);
+      setGameInfo(await ipc.runOperation(kind, path, selectedOptions, render));
       setOperation({ kind, path, status: 'succeeded' });
       setMessage(kind === 'restore' ? 'Restauração concluída.' : kind === 'repair' ? 'Reparo concluído.' : 'Componentes aplicados. Consulte a cobertura no diagnóstico.');
     } catch (err) {
-      const text = String(err);
+      const text = errorText(err);
       const cancelled = text.toLowerCase().includes('cancelada');
       setOperation({ kind, path, status: cancelled ? 'cancelled' : 'failed' });
       setError(cancelled ? null : text);
@@ -165,47 +165,55 @@ export function useInstaller() {
       // Keep the navigation/close guard until the final inspection has settled.
       setLoading(true);
       try { await readGame(path, false); }
-      catch (err) { setNotice(`Não foi possível atualizar o estado após a operação: ${String(err)}`); }
+      catch (err) { setNotice(`Não foi possível atualizar o estado após a operação: ${errorText(err)}`); }
       setLoading(false); setPaused(false); setStopping(false);
       lock.current = false; mutation.current = false;
     }
     return true;
   }
-  async function togglePause() {
+
+  /** Sends one pause/resume/cancel request at a time while an operation is active. */
+  async function control(request: () => Promise<void>, onFailure?: () => void) {
     if (!activeOperation.current || stopping || controlLock.current) return;
     controlLock.current = true; setControlPending(true);
-    try { await invoke(paused ? 'resume_operation' : 'pause_operation'); if (activeOperation.current) setPaused(!paused); }
-    catch (err) { setNotice(String(err)); }
+    try { await request(); }
+    catch (err) { setNotice(errorText(err)); onFailure?.(); }
     finally { controlLock.current = false; setControlPending(false); }
   }
-  async function cancel() {
-    if (!activeOperation.current || stopping || controlLock.current) return;
-    controlLock.current = true; setControlPending(true); setStopping(true);
-    try {
-      await invoke('cancel_operation');
-      if (activeOperation.current) { setPaused(false); setMessage('Parada solicitada; aguardando a unidade segura em andamento…'); }
-    } catch (err) { setNotice(String(err)); setStopping(false); }
-    finally { controlLock.current = false; setControlPending(false); }
-  }
+  const togglePause = () => control(async () => {
+    await (paused ? ipc.resumeOperation() : ipc.pauseOperation());
+    if (activeOperation.current) setPaused(!paused);
+  });
+  const cancel = () => control(async () => {
+    setStopping(true);
+    await ipc.cancelOperation();
+    if (activeOperation.current) { setPaused(false); setMessage('Parada solicitada; aguardando a unidade segura em andamento…'); }
+  }, () => setStopping(false));
+
   async function runController(kind: ControllerAction) {
     if (lock.current || controlLock.current || !gamePath) return;
     lock.current = true; mutation.current = kind !== 'refresh'; setLoading(true); setControllerAction(kind); setError(null);
     try {
-      const command = { refresh: 'get_controller_status', install: 'install_controller', remove: 'remove_controller', launch: 'launch_controller_game' }[kind];
-      setController(await invoke<ControllerStatus>(command, { gamePath }));
       // Launching the game is always an explicit user click in a confirmation dialog.
+      if (kind !== 'refresh') setController(await ipc.controller(kind, gamePath));
       await readGame(gamePath, false);
-    } catch (err) { setError(String(err)); }
+    } catch (err) { setError(errorText(err)); }
     finally { setControllerAction(null); setLoading(false); lock.current = false; mutation.current = false; }
   }
 
   async function openLogsFolder() {
-    try {
-      await invoke('open_logs_folder');
-    } catch (err) {
-      setNotice(`Não foi possível abrir a pasta de logs: ${String(err)}`);
-    }
+    try { await ipc.openLogsFolder(); }
+    catch (err) { setNotice(`Não foi possível abrir a pasta de logs: ${errorText(err)}`); }
   }
 
-  return { gamePath, gameInfo, bundle, bundleError, diagnostics, controller, options, setOptions, selectedOptions, render, setRender, display, loading, listenersReady, controllerAction, launching, canLaunchGame, launchGame, error, notice, operation, progress, message, paused, stopping, controlPending, running, busy, anyInstalled, readyToApply, mutation, inspect, chooseFolder, reloadBundle, refresh, run, togglePause, cancel, runController, openLogsFolder, setNotice };
+  return {
+    gamePath, gameInfo, bundle, bundleError, diagnostics, controller, display,
+    selectedOptions, setOptions, render, setRender,
+    loading, listenersReady, busy, running, paused, stopping, controlPending, launching, controllerAction,
+    error, notice, operation, progress, message,
+    anyInstalled, readyToApply, gameClosed, canLaunchGame, mutation,
+    inspect, chooseFolder, reloadBundle, refresh, run, togglePause, cancel, launchGame, runController, openLogsFolder,
+  };
 }
+
+export type Installer = ReturnType<typeof useInstaller>;

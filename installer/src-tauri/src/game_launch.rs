@@ -1,4 +1,4 @@
-use soul_reaver_mod_core::{EXE_SHA256, EXE_WIDESCREEN_SHA256, exe_sha256, is_game_running};
+use soul_reaver_mod_core::{exe_sha256, is_game_running, is_supported_exe};
 use std::{path::Path, process::Command};
 
 // Preparing a command validates the selected copy without executing anything.
@@ -6,8 +6,7 @@ fn prepare(game: &Path) -> Result<Command, String> {
     let game = game
         .canonicalize()
         .map_err(|error| format!("Pasta do jogo indisponível: {error}"))?;
-    let hash = exe_sha256(&game)?;
-    if hash != EXE_SHA256 && hash != EXE_WIDESCREEN_SHA256 {
+    if !is_supported_exe(&exe_sha256(&game)?) {
         return Err("Executável incompatível; inicialização recusada.".into());
     }
     if is_game_running(&game)? {

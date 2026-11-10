@@ -1,0 +1,58 @@
+/* Window chrome: title bar, navigation, the scrolling content area and the status bar. */
+.app-shell { height: 100dvh; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: clip; }
+
+.titlebar { height: 40px; background: var(--color-chrome); display: flex; align-items: center; justify-content: space-between; user-select: none; border-bottom: 1px solid var(--color-line); }
+.titlebar-brand { display: flex; align-items: center; gap: 12px; padding-left: 22px; font-size: var(--text-label); letter-spacing: 2px; color: #d9d8c4; }
+.titlebar-brand .icon { color: var(--color-bronze); width: 18px; }
+.titlebar-brand b { color: var(--color-muted); font-weight: 400; letter-spacing: 1px; }
+.window-actions { align-self: stretch; display: flex; align-items: center; }
+.window-actions button { height: 100%; width: 46px; color: var(--color-muted); }
+.window-actions button .icon { width: 15px; }
+.window-actions button:hover { background: #203032; color: #fff; }
+.window-actions button:active:not(:disabled) { scale: 1; }
+.window-actions .close-window:hover { background: #a8433a; }
+.preview-label { color: var(--color-muted); font-size: var(--text-label); letter-spacing: 1.5px; padding: 0 22px; }
+
+.main-nav { height: 56px; padding: 0 36px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-line); background: #0b1314; }
+.nav-links { display: flex; gap: 34px; }
+.nav-links button { position: relative; font-size: var(--text-body); color: var(--color-muted); padding: 0 2px; }
+.nav-links button:hover:not(:disabled) { color: var(--color-text); }
+.nav-links button:active:not(:disabled) { scale: 1; }
+.nav-links button::after {
+  content: ''; position: absolute; height: 2px; background: var(--color-bronze); bottom: -1px; left: 0; right: 0;
+  box-shadow: 0 -3px 16px #bb9b5566; scale: 0 1; transition: scale var(--base) var(--ease-out);
+  @media (prefers-reduced-motion: reduce) { transition: none; }
+}
+.nav-links button:hover:not(:disabled)::after { scale: .35 1; }
+.nav-links button[aria-current=page] { color: var(--color-bronze-light); }
+.nav-links button[aria-current=page]::after { scale: 1; }
+.about-button { color: var(--color-muted); font-size: var(--text-label); letter-spacing: 1.7px; display: flex; gap: 18px; align-items: center; }
+.about-button .icon { color: var(--color-bronze); width: 19px; transition: rotate var(--slow) var(--ease-out); }
+.about-button:hover { color: var(--color-bronze-light); }
+.about-button:hover .icon { rotate: 180deg; }
+
+.main-content { display: grid; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.main-content:focus { outline: none; }
+
+.statusbar { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: var(--color-chrome); border-top: 1px solid var(--color-line); color: var(--color-muted); font-size: var(--text-meta); }
+.statusbar > span:first-child { display: flex; align-items: center; gap: 9px; }
+.statusbar i { width: 5px; height: 5px; background: var(--color-bronze); rotate: 45deg; }
+.statusbar.busy i {
+  background: var(--color-spectral); box-shadow: var(--glow-spectral); animation: pulse 1.4s var(--ease-in-out) infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+}
+.footer-edition { letter-spacing: 2px; font-size: var(--text-label); }
+.footer-edition b { margin: 0 8px; color: var(--color-bronze); font-weight: 400; }
+
+.window-error { position: fixed; bottom: 46px; left: 20px; right: 20px; background: #301f1e; border: 1px solid #df998e; color: var(--color-danger); padding: 12px 14px; font-size: var(--text-small); display: flex; justify-content: space-between; align-items: center; gap: 20px; z-index: 4; box-shadow: 0 12px 40px #000a; }
+
+@media (max-width: 1050px) { .about-button { display: none; } }
+@media (max-width: 760px) {
+  .titlebar-brand b, .preview-label, .footer-edition { display: none; }
+  .titlebar-brand { padding-left: 15px; }
+  .main-nav { padding: 0 16px; height: 50px; }
+  .nav-links { gap: 14px; }
+  .nav-links button { font-size: var(--text-meta); }
+  .statusbar { height: auto; min-height: 34px; padding: 8px 16px; }
+  .window-error { left: 12px; right: 12px; }
+}

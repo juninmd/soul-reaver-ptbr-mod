@@ -1,0 +1,38 @@
+/* Keyframes and the entrance of each screen. Only `opacity`, `translate`,
+   `scale` and `rotate` are animated, so everything stays on the compositor.
+
+   Screen changes are plain CSS on purpose. The View Transitions API was tried
+   and removed: `document.startViewTransition` crashed the whole application
+   under WebKitGTK 2.52, and a cross-fade is not worth that risk in a tool
+   that writes into a game installation. */
+@keyframes orbit { to { rotate: 360deg; } }
+@keyframes pulse { 50% { opacity: .35; scale: .8; } }
+@keyframes breathe { 50% { scale: 1.06; opacity: .85; } }
+@keyframes seal { from { scale: .4; opacity: 0; rotate: -30deg; } }
+@keyframes beam { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@keyframes rise { from { opacity: 0; translate: 0 12px; } }
+@keyframes corona { 50% { opacity: .55; scale: 1.05; } }
+@keyframes drift { from { translate: -7% 0; } to { translate: 7% 0; } }
+@keyframes blade { 50% { opacity: .45; scale: .94 1; } }
+@keyframes mote {
+  0% { opacity: 0; translate: 0 0; }
+  15% { opacity: .85; }
+  85% { opacity: .5; }
+  100% { opacity: 0; translate: 12px -70px; }
+}
+
+@keyframes screen-in { from { opacity: 0; } }
+
+/* Direct children of `.reveal` arrive one after another. */
+@media (prefers-reduced-motion: no-preference) {
+  .main-content > * { animation: screen-in 220ms var(--ease-out) backwards; }
+  .reveal > * { animation: rise 520ms var(--ease-out) backwards; animation-delay: calc(var(--order, 0) * 55ms + 60ms); }
+  .reveal > :nth-child(2) { --order: 1; }
+  .reveal > :nth-child(3) { --order: 2; }
+  .reveal > :nth-child(4) { --order: 3; }
+  .reveal > :nth-child(5) { --order: 4; }
+  .reveal > :nth-child(6) { --order: 5; }
+  .reveal > :nth-child(n + 7) { --order: 6; }
+  .module { animation: rise 420ms var(--ease-out) backwards; animation-delay: calc(sibling-index() * 35ms + 180ms); }
+
+}

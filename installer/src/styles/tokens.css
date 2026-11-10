@@ -1,0 +1,39 @@
+/* Design tokens of the Nosgoth identity. Declared through Tailwind's @theme so
+   each one is both a CSS variable and a utility (bg-surface, text-muted, …). */
+@theme {
+  --color-base: #0a1112;
+  --color-chrome: #080e0f;
+  --color-surface: #101a1b;
+  --color-raised: #152224;
+  --color-line: #25352f;
+  --color-line-strong: #4a6258;
+  --color-text: #e0e5d9;
+  --color-title: #f2ebd6;
+  --color-muted: #aebbb3;
+  --color-bronze: #ad9156;
+  --color-bronze-light: #d6c18b;
+  --color-spectral: #a0dfbc;
+  --color-danger: #f0b5a8;
+
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+
+  /* Nothing in the interface is set below 10px; running text starts at 12px. */
+  --text-label: 10px;
+  --text-meta: 11px;
+  --text-small: 12px;
+  --text-body: 13px;
+  --text-lead: 15px;
+
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-in-out: cubic-bezier(.65, 0, .35, 1);
+}
+
+:root {
+  color-scheme: dark;
+  --fast: 140ms;
+  --base: 240ms;
+  --slow: 520ms;
+  --glow-spectral: 0 0 18px #7fd3a955;
+  --glow-bronze: 0 0 22px #c9a85f33;
+}
