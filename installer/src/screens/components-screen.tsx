@@ -24,6 +24,7 @@ export default function ComponentsScreen({ installer: i, onNavigate, onOpenModal
       <div className="eyebrow">PREPARE SUA JORNADA</div>
       <h1 tabIndex={-1}>Escolha o que despertar.</h1>
       <p className="intro">A essência do clássico. Os detalhes que você escolhe.</p>
+      <Notices installer={i} />
       <div className="section-heading">
         <h2>Componentes do pacote</h2>
         <div className="heading-actions">
@@ -47,9 +48,8 @@ export default function ComponentsScreen({ installer: i, onNavigate, onOpenModal
           );
         })}
       </div>
-      <p className="coverage-note"><Icon name="voice" /> O catálogo não comprova cobertura da campanha. Falas não substituídas mantêm o áudio original.</p>
+      {i.bundle && <p className="coverage-note"><Icon name="voice" /> O catálogo não comprova cobertura da campanha. Falas não substituídas mantêm o áudio original.</p>}
       {i.bundle?.experimental.length ? <p className="quiet experimental-note">Componentes experimentais declarados pelo pacote: {i.bundle.experimental.join(', ')}. O resultado no jogo ainda depende de validação.</p> : null}
-      <Notices installer={i} />
     </section>
     <aside className="summary-panel">
       <NosgothScene variant="aside" />

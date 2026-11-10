@@ -16,6 +16,7 @@ export default function DiagnosticsScreen({ installer: i, onOpenModal, onChangeL
       <div className="eyebrow">CONHEÇA CADA DETALHE</div>
       <h1 tabIndex={-1}>Seu legado, em ordem.</h1>
       <p className="intro">Estado dos arquivos, cobertura e suporte ao controle.</p>
+      <Notices installer={i} />
       <div className="diagnostics-grid">
         <section className="diagnostic-panel">
           <GameLocation installer={i} onChange={onChangeLocation} />
@@ -43,7 +44,6 @@ export default function DiagnosticsScreen({ installer: i, onOpenModal, onChangeL
         <DualSensePanel gamePath={i.gamePath} status={i.controller} disabled={i.busy || !i.gameInfo || !i.listenersReady} action={i.controllerAction}
           onAction={action => action === 'refresh' ? void i.runController(action) : onOpenModal(`controller-${action}`)} onOpenLogs={i.openLogsFolder} />
       </div>
-      <Notices installer={i} />
     </section>
   );
 }

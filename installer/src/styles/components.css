@@ -17,7 +17,7 @@
 }
 
 /* Notices */
-.notices { display: grid; gap: 10px; margin: 0 0 16px; }
+.notices { display: grid; gap: 10px; margin: 12px 0; }
 .notice { display: flex; gap: 11px; align-items: flex-start; border-left: 2px solid var(--color-spectral); background: #14231f; padding: 10px 12px; font-size: var(--text-small); line-height: 1.6; color: #d5eadb; overflow-wrap: anywhere; margin: 0; }
 .notice > .icon { width: 16px; height: 16px; margin-top: 2px; color: var(--color-spectral); }
 .notice strong { font-weight: 600; }
@@ -112,6 +112,7 @@ progress:not([value])::-webkit-progress-bar { background: linear-gradient(90deg,
 .controller-status strong { font-size: var(--text-body); font-weight: 600; }
 .controller-status p { color: var(--color-muted); line-height: 1.65; }
 .controller-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.controller-panel .intro + .controller-actions { margin-top: 16px; }
 .controller-mapping { border-top: 1px solid var(--color-line); margin: 18px 0; padding-top: 10px; }
 .controller-mapping ul { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
 .controller-mapping li { display: flex; align-items: center; gap: 10px; padding: 7px 9px; background: var(--color-base); font-size: var(--text-meta); }

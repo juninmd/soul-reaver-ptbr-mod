@@ -26,10 +26,15 @@
 .journey-features span { display: block; font-size: var(--text-small); color: var(--color-muted); margin-top: 1px; }
 /* A message takes the place of the feature list so the first screen never scrolls. */
 .home-panel:has(.notices) .journey-features { display: none; }
-.home-panel:has(.notices) .game-location { margin-top: 22px; margin-bottom: 14px; }
+.home-panel:has(.notices) .game-location { margin-top: 22px; margin-bottom: 0; }
 .recovery-link { align-self: flex-start; margin-bottom: 14px; }
 
-/* Components and restore */
+/* Components and restore: the list scrolls inside its own column, so the
+   actions beside it stay in view however long a warning makes the list. */
+@media (min-width: 761px) {
+  .screen-components, .screen-restore { grid-template-rows: minmax(0, 1fr); }
+  .screen-components > .workspace, .screen-restore > .workspace { overflow: auto; overscroll-behavior: contain; }
+}
 .workspace { padding: 26px 36px 18px; min-width: 0; }
 .workspace h1, .progress-panel h1 { font: 33px/1.2 var(--font-display); color: var(--color-title); margin: 13px 0 9px; }
 .summary-panel, .restore-art { position: relative; isolation: isolate; overflow: hidden; border-left: 1px solid var(--color-line); }
@@ -39,18 +44,18 @@
 .aside-content .game-location { margin-bottom: 0; background: #101a1bd9; backdrop-filter: blur(6px); }
 .aside-content .secondary { margin-top: 12px; }
 .install-requirements { margin: 0 0 12px; color: var(--color-bronze-light); }
-.restore-workspace { padding-top: 40px; }
-.restore-state { display: flex; align-items: center; gap: 16px; background: #13201d; border: 1px solid #3b574a; padding: 20px; margin-top: 26px; }
+.restore-workspace { padding-top: 30px; }
+.restore-state { display: flex; align-items: center; gap: 16px; background: #13201d; border: 1px solid #3b574a; padding: 16px 20px; margin-top: 18px; }
 .restore-state > .icon { color: var(--color-muted); width: 28px; height: 28px; }
 .restore-state.active > .icon { color: var(--color-spectral); filter: drop-shadow(0 0 8px #a0dfbc66); }
 .restore-state h2 { font-size: var(--text-lead); font-weight: 600; margin-bottom: 3px; color: var(--color-title); }
 .restore-state p { color: var(--color-muted); font-size: var(--text-small); }
-.restore-title { font: 22px var(--font-display); margin: 26px 0 12px; color: var(--color-title); }
-.restore-steps li { display: flex; align-items: flex-start; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--color-line); }
+.restore-title { font: 22px var(--font-display); margin: 20px 0 6px; color: var(--color-title); }
+.restore-steps li { display: flex; align-items: flex-start; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--color-line); }
 .restore-steps li > span { color: var(--color-bronze); font-size: 8px; margin-top: 7px; }
 .restore-steps strong { font-size: var(--text-body); font-weight: 600; }
 .restore-steps p { font-size: var(--text-small); color: var(--color-muted); margin-top: 2px; }
-.restore-bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 22px 0 14px; }
+.restore-bottom { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 16px 0 12px; }
 .restore-art { display: flex; align-items: flex-end; padding: 44px 28px; }
 .restore-art .scene-canvas { opacity: .95; --focus-y: .15; }
 .restore-art-copy .icon { color: var(--color-bronze-light); width: 36px; height: 48px; }

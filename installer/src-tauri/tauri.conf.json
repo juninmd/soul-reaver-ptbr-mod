@@ -19,11 +19,20 @@
         "shadow": false,
         "center": true,
         "resizable": true,
-        "backgroundColor": "#0b1213"
+        "backgroundColor": "#0a1112"
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self'",
+        "img-src": "'self'",
+        "connect-src": "ipc: http://ipc.localhost",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'"
+      }
     }
   },
   "bundle": {

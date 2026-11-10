@@ -48,7 +48,7 @@ válidos permitem restaurar; a decisão final e a recusa de conflitos pertencem 
 
 | Caminho | Responsabilidade |
 | --- | --- |
-| `installer/src/app/` | Casca do aplicativo (`app.tsx`), navegação com transição entre telas e estado derivado das operações |
+| `installer/src/app/` | Casca do aplicativo (`app.tsx`), navegação e estado derivado das operações |
 | `installer/src/screens/` | Uma tela por arquivo: jornada, componentes, operação, restauração e diagnóstico |
 | `installer/src/dialogs/app-dialogs.tsx` | Conteúdo de cada confirmação exibida no diálogo modal |
 | `installer/src/components/` | Peças reutilizadas: barra de título, navegação, local do jogo, avisos, modal, cena de Nosgoth, painel DualSense e ícones |
@@ -72,6 +72,18 @@ mesma inspeção dos arquivos. A descrição do pacote é verificada ao abrir, e
 **Atualizar diagnóstico** e em **Verificar pacote novamente**; a inspeção feita
 ao fim de uma operação reutiliza a última descrição verificada. A instalação
 confere cada payload outra vez antes de gravar.
+
+`tauri.conf.json` define uma Content-Security-Policy restrita: scripts, estilos e
+imagens apenas do próprio aplicativo, conexões apenas para o IPC do Tauri, sem
+`unsafe-inline` nem `unsafe-eval`. O verificador da interface serve o documento com
+essa mesma política, e um recurso bloqueado aparece como aviso na janela.
+
+A troca de telas usa apenas CSS. A API View Transitions foi testada e removida:
+`document.startViewTransition` derrubava o processo no WebKitGTK 2.52.
+
+O pacote é procurado em `SRMOD_MODULES`/`SRMOD_REPO`, depois ao redor do executável
+(até três níveis, o que alcança a raiz do repositório a partir de `target/<perfil>/`)
+e por fim ao redor do diretório de trabalho. Nenhum caminho de máquina é fixo.
 
 As regras de integridade, propriedade, backup e restauração continuam no core.
 Não há dados demonstrativos, temporizadores de progresso simulado nem caminhos
@@ -115,6 +127,12 @@ baixa dependências. Ele executa o
 frontend real com um transporte Tauri controlado, apenas no processo de teste.
 O relatório identifica o backend simulado. Isso verifica a interface e os
 argumentos IPC, sem comprovar por si só a aplicação real de arquivos.
+
+No Linux, `tools/verify_installer_native.sh` executa o binário real (backend Rust,
+frontend embutido e WebKitGTK) sob Xvfb, percorre telas e diálogos com cliques e
+teclado sintéticos e falha se o processo encerrar. Ele roda sem pacote e sem pasta
+de jogo, portanto não inspeciona nem grava arquivos, e não substitui a rodada no
+Windows.
 
 A rodada nativa separada usa WebView2, o backend Rust e uma fixture em `staging/`.
 Os relatórios registram exatamente quais componentes foram aplicados/restaurados

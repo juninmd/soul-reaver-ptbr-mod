@@ -13,7 +13,7 @@ import HomeScreen from '../screens/home-screen';
 import ProgressScreen from '../screens/progress-screen';
 import RestoreScreen from '../screens/restore-screen';
 import type { ScreenProps } from '../screens/screen-props';
-import { documentTitle, transitionScreen, type Screen } from './navigation';
+import { documentTitle, type Screen } from './navigation';
 import { viewState } from './view-state';
 
 const screens: Record<Screen, (props: ScreenProps) => ReactNode> = {
@@ -47,17 +47,22 @@ export default function App() {
     return () => { disposed = true; unlisten?.(); };
   }, [mutation]);
 
+  // The policy in tauri.conf.json blocks what the application does not ship.
+  // A blocked resource is reported instead of failing silently.
+  useEffect(() => {
+    const report = (event: SecurityPolicyViolationEvent) => setWindowError(`Recurso bloqueado pela política de segurança (${event.violatedDirective}): ${event.blockedURI || 'inline'}`);
+    document.addEventListener('securitypolicyviolation', report);
+    return () => document.removeEventListener('securitypolicyviolation', report);
+  }, []);
+
   async function windowAction(action: WindowAction) {
     if (action === 'close' && mutation.current) { setModal('close-busy'); return; }
     if (!isTauri()) { setWindowError('Os controles da janela estão disponíveis no aplicativo desktop.'); return; }
     try { await getCurrentWindow()[action](); } catch (err) { setWindowError(errorText(err)); }
   }
-  const show = (next: Screen) => { if (next !== screen) transitionScreen(() => setScreen(next)); };
-  const navigate = (next: Screen) => { if (!busy) show(next); };
+  const navigate = (next: Screen) => { if (!busy) setScreen(next); };
   function start(kind: OperationKind) {
     if (busy || !installer.gamePath || (kind === 'install' && !installer.readyToApply)) return;
-    // Not a navigation: the operation screen must be in place before the first
-    // progress event, so it does not wait for a view transition.
     setModal(null); setScreen('progress'); void installer.run(kind);
   }
 

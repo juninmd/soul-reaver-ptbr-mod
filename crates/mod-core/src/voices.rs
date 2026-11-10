@@ -150,7 +150,9 @@ fn journal(game: &Path, policy: &Policy) -> Result<Option<Journal>> {
 
 /// Canonical directory and executable bytes of a supported installation.
 fn supported_exe(game: &Path, policy: &Policy) -> Result<(PathBuf, Vec<u8>)> {
-    let game = io(game.canonicalize())?;
+    let game = game
+        .canonicalize()
+        .map_err(|error| format!("Pasta do jogo indisponível: {error}"))?;
     let exe = read(&game.join("kain2.exe"), EXE_LIMIT)?;
     let exe_hash = sha(&exe);
     if exe_hash != policy.exe && exe_hash != EXE_WIDESCREEN_SHA256 {

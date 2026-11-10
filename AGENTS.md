@@ -30,6 +30,7 @@ Preservar o jogo original e os saves. Separar fatos observados, propostas e vali
 - Build do frontend do instalador: `pnpm --dir installer build` (TypeScript e Vite).
 - Benchmarks do core (fixtures sintéticos, ~1 GB temporário): `cargo test --release -p soul-reaver-mod-core -- --ignored bench_ --nocapture --test-threads 1`.
 - Regressão da interface com IPC simulado: `node tools/verify_installer_ui.mjs` (ver `docs/INSTALADOR-NOSGOTH.md`).
+- Fumaça do instalador real no Linux (Xvfb, sem pacote e sem jogo): `tools/verify_installer_native.sh`.
 - Extração de catálogo: `python tools/audio_pipeline.py catalogue --game <pasta-jogo> --output <pasta-saida>`.
 - Empacotamento de vozes aprovadas: `python tools/audio_pipeline.py package --game <pasta-jogo> --plan <plano.json> --output <pasta-pacote>`.
 - Benchmark e produção de voz na GPU: `python tools/generate_voices.py --plan <plano.json> --model <caminho-modelo> --model-revision <rev> --output <pasta-saida> [--benchmark]`.

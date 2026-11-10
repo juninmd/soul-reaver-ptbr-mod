@@ -23,6 +23,14 @@ const errors = [];
 const checks = [];
 const external = [];
 const page = await context.newPage();
+// The document is served with the application's own Content-Security-Policy, so a
+// script, style or image the policy would block in the desktop app fails here too.
+const { app: { security: { csp } } } = JSON.parse(await readFile(new URL('../installer/src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+const policy = Object.entries(csp).map(([directive, sources]) => `${directive} ${[sources].flat().join(' ')}`).join('; ');
+await page.route(url => url.pathname === '/', async route => {
+  const response = await route.fetch();
+  await route.fulfill({ response, headers: { ...response.headers(), 'content-security-policy': policy } });
+});
 page.setDefaultTimeout(7000);
 page.on('pageerror', error => errors.push(String(error)));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -30,11 +38,13 @@ page.on('request', request => { if (/^https?:/.test(request.url()) && !request.u
 await context.addInitScript(installBridge);
 const button = name => page.getByRole('button', { name, exact: true });
 const check = (name, value) => { assert.ok(value, name); checks.push(name); };
-// Entrance animations and screen transitions must be over before a still is taken.
-const settled = () => page.waitForFunction(() => !document.documentElement.matches(':active-view-transition') && document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== 'running'));
+// Entrance animations must be over before a still is taken.
+const settled = () => page.waitForFunction(() => document.getAnimations().every(animation => animation.effect?.getComputedTiming().iterations === Infinity || animation.playState !== 'running'));
 const shot = async name => { await settled(); await page.screenshot({ path: join(output, `${name}.png`), fullPage: true }); };
 // The shell never scrolls; a screen fits when its content area does not overflow.
-const fits = () => page.evaluate(() => { const main = document.querySelector('main'); return document.documentElement.scrollHeight <= innerHeight + 1 && main.scrollHeight <= main.clientHeight + 1; });
+const fits = () => page.evaluate(() => { const main = document.querySelector('main'); return document.documentElement.scrollHeight <= innerHeight + 1 && [main, ...main.children].every(box => box.scrollHeight <= box.clientHeight + 1); });
+// Whole control inside the window, without scrolling.
+const inView = name => button(name).evaluate(element => { const box = element.getBoundingClientRect(); return box.top >= 0 && box.bottom <= innerHeight && box.width > 0; });
 const inspections = async () => (await commandCalls('inspect_installation')).length;
 const waitIdle = () => page.waitForFunction(() => ![...document.querySelectorAll('nav button')].find(e => e.textContent === 'A jornada')?.disabled);
 const commandCalls = name => page.evaluate(name => window.__testBridge.calls.filter(call => call.command === name), name);
@@ -159,6 +169,14 @@ try {
   check('Falha do pacote não esconde a instalação detectada', await page.getByText('Soul Reaver · Steam Classic', { exact: true }).isVisible());
   await button('Preparar instalação').click();
   check('Pacote ausente bloqueia revisão e permite tentar novamente', await button('Revisar instalação').isDisabled() && await button('Verificar pacote novamente').isVisible());
+  // A warning must not push the actions of a screen below the fold.
+  await settled(); const reviewInView = await inView('Revisar instalação') && await inView('Ver diagnóstico');
+  await button('Restauração').click(); await settled(); const restoreInView = await inView('Restaurar tudo');
+  check('Ações permanecem à vista em 1240x800 mesmo com aviso de pacote', reviewInView && restoreInView);
+  await button('Diagnóstico e controle').click();
+  await button('Alterar').click();
+  check('Diálogo abre com o foco no campo, não no botão de fechar', await page.getByLabel('Pasta do jogo').evaluate(e => e === document.activeElement));
+  await page.keyboard.press('Escape');
   await page.evaluate(() => { sessionStorage.removeItem('fixtureScenario'); });
   await page.reload(); await waitIdle();
   await page.setViewportSize({ width: 860, height: 680 }); await shot('07-compacto');
@@ -172,8 +190,15 @@ try {
   check('Movimento reduzido desliga animações ambientes e de entrada', await page.evaluate(() => document.getAnimations().length === 0));
   check('Nenhuma requisição externa', external.length === 0);
   check('Console sem erros', errors.length === 0);
-  await writeFile(join(output, 'report.json'), JSON.stringify({ target: 'Production React UI, Chromium, controlled Tauri transport', simulatedBackend: true, gameLaunched: false, checks, errors, external }, null, 2));
-  console.log(JSON.stringify({ passed: checks.length, errors, report: join(output, 'report.json') }));
+  // Last, because the probe itself logs the violation it provokes.
+  const consoleErrors = [...errors];
+  check('Política de segurança do aplicativo bloqueia script inline', await page.evaluate(() => new Promise(resolve => {
+    document.addEventListener('securitypolicyviolation', event => resolve(event.violatedDirective.startsWith('script-src')), { once: true });
+    const script = document.createElement('script'); script.textContent = 'window.__inlineRan = true'; document.head.append(script);
+    setTimeout(() => resolve(false), 1000);
+  })) && await page.evaluate(() => window.__inlineRan !== true) && await page.getByRole('alert').filter({ hasText: 'política de segurança' }).isVisible());
+  await writeFile(join(output, 'report.json'), JSON.stringify({ target: 'Production React UI, Chromium, controlled Tauri transport', simulatedBackend: true, gameLaunched: false, checks, errors: consoleErrors, external }, null, 2));
+  console.log(JSON.stringify({ passed: checks.length, errors: consoleErrors, report: join(output, 'report.json') }));
 } catch (error) {
   await shot('failure');
   await writeFile(join(output, 'failure.json'), JSON.stringify({ error: String(error), console: errors, state: await page.evaluate(() => ({ body: document.body.innerText, calls: window.__testBridge?.calls })) }, null, 2));

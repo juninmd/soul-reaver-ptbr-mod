@@ -24,16 +24,32 @@ const BUNDLES: [&str; 7] = [
     "tutorial-review-v1",
 ];
 
-fn repo_root_candidates() -> Vec<PathBuf> {
+/// How far above the executable a package is looked for: enough to reach the
+/// repository root from `target/<profile>/`, and no further.
+const EXECUTABLE_ANCESTORS: usize = 3;
+
+/// Directories that may hold `modules/` or `staging/packages/`, most specific
+/// first: the explicit override, then around the executable, then around the
+/// working directory. Nothing here names a particular machine.
+fn root_candidates(executable: Option<&Path>) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if let Some(value) = std::env::var_os("SRMOD_REPO") {
         roots.push(PathBuf::from(value));
     }
-    roots.push(PathBuf::from(r"D:\Solutions\pessoal\soul-reaver-ptbr-mod"));
-    roots.push(PathBuf::from("."));
-    roots.push(PathBuf::from(".."));
-    roots.push(PathBuf::from("../.."));
+    if let Some(directory) = executable.and_then(Path::parent) {
+        roots.extend(
+            directory
+                .ancestors()
+                .take(EXECUTABLE_ANCESTORS)
+                .map(Path::to_path_buf),
+        );
+    }
+    roots.extend([".", "..", "../.."].map(PathBuf::from));
     roots
+}
+
+fn repo_root_candidates() -> Vec<PathBuf> {
+    root_candidates(std::env::current_exe().ok().as_deref())
 }
 
 pub fn find_bundle() -> Result<PathBuf, String> {
@@ -282,5 +298,28 @@ impl BundleCache {
     pub fn get(&self) -> Result<BundleInfo, String> {
         let cached = self.0.lock().unwrap_or_else(|e| e.into_inner()).clone();
         cached.map_or_else(|| self.refresh(), Ok)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_package_is_found_next_to_the_executable_or_at_the_repository_root() {
+        let executable = Path::new("/opt/sr/target/release/soul-reaver-mod-installer");
+        let roots = root_candidates(Some(executable));
+        let around_executable: Vec<_> = ["/opt/sr/target/release", "/opt/sr/target", "/opt/sr"]
+            .map(PathBuf::from)
+            .into();
+        assert!(
+            roots
+                .windows(around_executable.len())
+                .any(|window| window == around_executable),
+            "{roots:?}"
+        );
+        // The search stops at the repository root instead of walking to `/`.
+        assert!(!roots.contains(&PathBuf::from("/opt")));
+        assert!(root_candidates(None).ends_with(&[".", "..", "../.."].map(PathBuf::from)));
     }
 }

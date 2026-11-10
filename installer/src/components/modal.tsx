@@ -26,8 +26,10 @@ export default function Modal({ open, onClose, children }: Props) {
 
   return (
     <dialog ref={dialog} inert={!open} aria-labelledby="dialog-title" onCancel={event => { event.preventDefault(); onClose(); }}>
-      <button className="dialog-close" aria-label="Fechar diálogo" onClick={onClose}><Icon name="close" /></button>
       {children}
+      {/* Last in the document: a modal focuses its first control when it opens,
+          and that should be the field or the safe choice, not "close". */}
+      <button className="dialog-close" aria-label="Fechar diálogo" onClick={onClose}><Icon name="close" /></button>
     </dialog>
   );
 }
