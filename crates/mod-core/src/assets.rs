@@ -1,5 +1,20 @@
 //! Localization and video assets use independent journals and a shared operation lock.
-use super::*;
+use crate::{
+    MANAGER, Result,
+    fsx::{
+        JOURNAL_LIMIT, atomic_write, chain, current_hash, io, is_sha256, lock_operation,
+        prospective, read, sha, sha_file, supported_game_dir, write_new,
+    },
+    operation::{OperationControl, PHASES, Progress},
+    process::ClosedGame,
+};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::HashSet,
+    fs::{self, File},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 const LIMIT: u64 = 512 * 1024 * 1024;
 
@@ -144,13 +159,6 @@ fn known_source(component: &AssetsComponent, name: &str) -> Option<&'static str>
         .map(|(_, hash)| *hash)
 }
 
-fn hash_valid(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
 fn valid_asset(
     component: &AssetsComponent,
     name: &str,
@@ -159,7 +167,7 @@ fn valid_asset(
 ) -> Result<()> {
     if (!new_file(component, name) && known_source(component, name).is_none())
         || source != known_source(component, name)
-        || !hash_valid(result)
+        || !is_sha256(result)
         || source == Some(result)
     {
         return Err(format!(
@@ -170,77 +178,21 @@ fn valid_asset(
     Ok(())
 }
 
-fn chain(path: &Path) -> Result<()> {
-    for part in path.ancestors() {
-        match fs::symlink_metadata(part) {
-            Ok(_) => plain(part)?,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
-            Err(e) => return Err(e.to_string()),
-        }
-    }
-    Ok(())
-}
-
-fn prospective(path: &Path) -> Result<PathBuf> {
-    chain(path)?;
-    if path
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
-        return Err("Diretório de backup não pode conter '..'.".into());
-    }
-    let absolute = io(std::path::absolute(path))?;
-    let mut parent = absolute.as_path();
-    let mut missing = Vec::new();
-    while !parent.exists() {
-        missing.push(parent.file_name().ok_or("Diretório inválido")?.to_owned());
-        parent = parent.parent().ok_or("Diretório inválido")?;
-    }
-    let mut result = io(parent.canonicalize())?;
-    for name in missing.into_iter().rev() {
-        result.push(name);
-    }
-    Ok(result)
-}
-
 fn current(path: &Path) -> Result<Option<String>> {
-    chain(path)?;
-    if !path.exists() {
-        return Ok(None);
-    }
-    Ok(Some(sha(&read(path, LIMIT)?)))
+    current_hash(path, LIMIT)
 }
 
 fn game_path(game: &Path, component: &AssetsComponent) -> Result<PathBuf> {
-    chain(game)?;
-    let game = io(game.canonicalize())?;
-    let exe = sha(&read(&game.join("kain2.exe"), 4 * 1024 * 1024)?);
-    if exe != EXE_SHA256 && exe != EXE_WIDESCREEN_SHA256 {
-        return Err(format!(
+    supported_game_dir(game, || {
+        format!(
             "Executável incompatível com o componente {}.",
             component.label
-        ));
-    }
-    Ok(game)
+        )
+    })
 }
 
 fn lock(game: &Path) -> Result<File> {
-    let root = game.join(MANAGER);
-    chain(&root)?;
-    if !root.exists() {
-        io(fs::create_dir(&root))?;
-    }
-    let path = root.join("operation.lock");
-    chain(&path)?;
-    let file = io(OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(path))?;
-    file.try_lock_exclusive()
-        .map_err(|_| "Outra instalação está em andamento.".to_string())?;
-    Ok(file)
+    lock_operation(game)
 }
 
 fn read_state_record(game: &Path, component: &AssetsComponent) -> Result<Option<(State, Vec<u8>)>> {
@@ -249,18 +201,11 @@ fn read_state_record(game: &Path, component: &AssetsComponent) -> Result<Option<
     if !path.exists() {
         return Ok(None);
     }
-    let bytes = read(&path, 128 * 1024)?;
+    let bytes = read(&path, JOURNAL_LIMIT)?;
     let state: State = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
     if state.schema != 1
         || io(state.game.canonicalize())? != game
-        || ![
-            "original",
-            "preparing",
-            "installed",
-            "restoring",
-            "restored",
-        ]
-        .contains(&state.phase.as_str())
+        || !PHASES.contains(&state.phase.as_str())
     {
         return Err(format!("Registro de {} incompatível.", component.label));
     }
@@ -329,7 +274,16 @@ fn legacy_views(game: &Path, video: &AssetsComponent) -> Result<Option<LegacyVie
     }))
 }
 
+/// Hash of each journaled file as read while the journal was validated, in
+/// journal order. Callers that act right after loading reuse it instead of
+/// hashing every archive a second time.
+type Observed = Vec<Option<String>>;
+
 fn load_state(game: &Path, component: &AssetsComponent) -> Result<State> {
+    Ok(load_observed_state(game, component)?.0)
+}
+
+fn load_observed_state(game: &Path, component: &AssetsComponent) -> Result<(State, Observed)> {
     if component.id == LOCALIZATION.id || component.id == VIDEO.id {
         let video = if component.id == VIDEO.id {
             component
@@ -337,11 +291,18 @@ fn load_state(game: &Path, component: &AssetsComponent) -> Result<State> {
             &VIDEO
         };
         if let Some(views) = legacy_views(game, video)? {
-            return Ok(if component.id == VIDEO.id {
+            // Legacy journals are split in memory; this rare path hashes again.
+            let state = if component.id == VIDEO.id {
                 views.video
             } else {
                 views.localization
-            });
+            };
+            let observed = state
+                .assets
+                .iter()
+                .map(|entry| current(&game.join(&entry.file)))
+                .collect::<Result<_>>()?;
+            return Ok((state, observed));
         }
     }
     let state = match read_state_record(game, component)? {
@@ -353,8 +314,8 @@ fn load_state(game: &Path, component: &AssetsComponent) -> Result<State> {
             assets: vec![],
         },
     };
-    validate_state(game, component, &state)?;
-    Ok(state)
+    let observed = validate_state(game, component, &state)?;
+    Ok((state, observed))
 }
 
 /// Atomic create-only metadata persistence: never clobber a different backup or
@@ -362,7 +323,7 @@ fn load_state(game: &Path, component: &AssetsComponent) -> Result<State> {
 fn persist_identical_or_new(path: &Path, bytes: &[u8]) -> Result<()> {
     chain(path)?;
     if path.exists() {
-        return if read(path, 128 * 1024)? == bytes {
+        return if read(path, JOURNAL_LIMIT)? == bytes {
             Ok(())
         } else {
             Err("Registro de migração preexistente diferente; preservado.".into())
@@ -375,7 +336,7 @@ fn persist_identical_or_new(path: &Path, bytes: &[u8]) -> Result<()> {
     match temporary.persist_noclobber(path) {
         Ok(_) => Ok(()),
         Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
-            if read(path, 128 * 1024)? == bytes {
+            if read(path, JOURNAL_LIMIT)? == bytes {
                 Ok(())
             } else {
                 Err("Registro de migração mudou; preservado.".into())
@@ -398,7 +359,7 @@ fn migrate_legacy_state(game: &Path, video: &AssetsComponent) -> Result<()> {
     let snapshot = manager.join(format!("assets-state.legacy-{}.json", sha(&views.original)));
     persist_identical_or_new(&snapshot, &views.original)?;
     if let Some(expected) = views.existing_video {
-        if read(&video_path, 128 * 1024)? != expected {
+        if read(&video_path, JOURNAL_LIMIT)? != expected {
             return Err("Registro de vídeos mudou durante a migração; preservado.".into());
         }
     } else {
@@ -407,7 +368,7 @@ fn migrate_legacy_state(game: &Path, video: &AssetsComponent) -> Result<()> {
             &serde_json::to_vec_pretty(&views.video).map_err(|e| e.to_string())?,
         )?;
     }
-    if read(&legacy_path, 128 * 1024)? != views.original {
+    if read(&legacy_path, JOURNAL_LIMIT)? != views.original {
         return Err("Registro legado mudou durante a migração; preservado.".into());
     }
     atomic_write(
@@ -416,8 +377,9 @@ fn migrate_legacy_state(game: &Path, video: &AssetsComponent) -> Result<()> {
     )
 }
 
-fn validate_state(game: &Path, component: &AssetsComponent, state: &State) -> Result<()> {
+fn validate_state(game: &Path, component: &AssetsComponent, state: &State) -> Result<Observed> {
     let mut seen = HashSet::new();
+    let mut observed = Vec::with_capacity(state.assets.len());
     for entry in &state.assets {
         valid_asset(
             component,
@@ -430,7 +392,7 @@ fn validate_state(game: &Path, component: &AssetsComponent, state: &State) -> Re
             || entry
                 .previous_sha256
                 .as_ref()
-                .is_some_and(|h| !hash_valid(h))
+                .is_some_and(|h| !is_sha256(h))
         {
             return Err("Propriedade de arquivo inválida no registro.".into());
         }
@@ -456,8 +418,9 @@ fn validate_state(game: &Path, component: &AssetsComponent, state: &State) -> Re
                 entry.file
             ));
         }
+        observed.push(hash);
     }
-    Ok(())
+    Ok(observed)
 }
 
 fn save(game: &Path, component: &AssetsComponent, state: &State) -> Result<()> {
@@ -477,10 +440,15 @@ fn save(game: &Path, component: &AssetsComponent, state: &State) -> Result<()> {
     )
 }
 
-fn package(component: &AssetsComponent, path: &Path) -> Result<Vec<(Asset, Vec<u8>)>> {
+/// Validated package entries with the location of each payload.
+///
+/// Every payload is hash-verified here by streaming, so inspecting or
+/// pre-validating a package never holds its archives in memory. [`payload`]
+/// loads and re-verifies one entry at the moment it is written.
+fn package(component: &AssetsComponent, path: &Path) -> Result<Vec<(Asset, PathBuf)>> {
     chain(path)?;
     let plan: AssetPackage =
-        serde_json::from_slice(&read(path, 128 * 1024)?).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&read(path, JOURNAL_LIMIT)?).map_err(|e| e.to_string())?;
     if plan.schema != 1 || plan.assets.is_empty() || plan.assets.len() > component.max_files {
         return Err(format!("Pacote de {} inválido.", component.label));
     }
@@ -507,13 +475,22 @@ fn package(component: &AssetsComponent, path: &Path) -> Result<Vec<(Asset, Vec<u
         }
         let target = parent.join(&item.payload);
         chain(&target)?;
-        let bytes = read(&target, LIMIT)?;
-        if sha(&bytes) != item.result_sha256 {
+        if sha_file(&target, LIMIT)?.0 != item.result_sha256 {
             return Err(format!("Pacote alterado: {}", item.file));
         }
-        output.push((item, bytes));
+        output.push((item, target));
     }
     Ok(output)
+}
+
+/// Bytes of one verified payload, checked again because time has passed since
+/// the package was validated.
+fn payload(path: &Path, entry: &Entry) -> Result<Vec<u8>> {
+    let bytes = read(path, LIMIT)?;
+    if sha(&bytes) != entry.result_sha256 {
+        return Err(format!("Pacote alterado: {}", entry.file));
+    }
+    Ok(bytes)
 }
 
 fn info<'a>(component: &AssetsComponent, files: impl Iterator<Item = &'a str>) -> AssetsInfo {
@@ -551,21 +528,21 @@ pub fn inspect(game: &Path) -> Result<AssetsInfo> {
 pub fn inspect_component(game: &Path, component: &AssetsComponent) -> Result<AssetsInfo> {
     chain(game)?;
     let game = io(game.canonicalize())?;
-    let state = load_state(&game, component)?;
-    let mut files = Vec::new();
-    for entry in &state.assets {
-        if current(&game.join(&entry.file))?.as_ref() == Some(&entry.result_sha256) {
-            files.push(entry.file.as_str());
-        }
-    }
-    Ok(info(component, files.into_iter()))
+    let (state, observed) = load_observed_state(&game, component)?;
+    let files = state
+        .assets
+        .iter()
+        .zip(&observed)
+        .filter(|(entry, hash)| hash.as_ref() == Some(&entry.result_sha256))
+        .map(|(entry, _)| entry.file.as_str());
+    Ok(info(component, files))
 }
 
 fn preflight(
     game: &Path,
     component: &AssetsComponent,
     state: &State,
-    plan: &[(Asset, Vec<u8>)],
+    plan: &[(Asset, PathBuf)],
     backups: &Path,
 ) -> Result<Vec<Entry>> {
     let mut changes = Vec::new();
@@ -705,12 +682,12 @@ fn apply_checked_control(
     control: &OperationControl,
     mut progress: impl FnMut(Progress),
 ) -> Result<AssetsInfo> {
-    let _lock = lock(&game)?;
-    ensure_closed(&game)?;
+    let _lock = lock(game)?;
+    let closed = ClosedGame::new(game)?;
     let backups = prospective(backups)?;
-    let mut state = load_state(&game, component)?;
+    let mut state = load_state(game, component)?;
     let plan = package(component, manifest)?;
-    let changes = preflight(&game, component, &state, &plan, &backups)?;
+    let changes = preflight(game, component, &state, &plan, &backups)?;
     let backup_total = changes
         .iter()
         .filter(|entry| entry.backup.is_some())
@@ -727,9 +704,7 @@ fn apply_checked_control(
                 let parent = backup.parent().ok_or("Backup sem diretório")?;
                 chain(parent)?;
                 io(fs::create_dir_all(parent))?;
-                let mut file = io(OpenOptions::new().create_new(true).write(true).open(backup))?;
-                io(file.write_all(&bytes))?;
-                io(file.sync_all())?;
+                write_new(backup, &bytes)?;
             }
             if current(backup)? != entry.source_sha256 {
                 return Err("Falha ao verificar backup.".into());
@@ -748,9 +723,9 @@ fn apply_checked_control(
         state.assets.push(entry.clone());
     }
     state.phase = "preparing".into();
-    save(&game, component, &state)?;
+    save(game, component, &state)?;
     let total = changes.len();
-    for (index, (entry, (_, bytes))) in changes.iter().zip(plan.iter()).enumerate() {
+    for (index, (entry, (_, source))) in changes.iter().zip(plan.iter()).enumerate() {
         control.checkpoint()?;
         progress(Progress {
             stage: component.id.into(),
@@ -758,12 +733,12 @@ fn apply_checked_control(
             total,
             message: format!("Instalando {}", entry.file),
         });
-        ensure_closed(&game)?;
+        closed.ensure()?;
         let target = game.join(&entry.file);
         if current(&target)? != entry.previous_sha256 {
             return Err("Arquivo mudou durante a instalação; preservado.".into());
         }
-        atomic_write(&target, bytes)?;
+        atomic_write(&target, &payload(source, entry)?)?;
         if current(&target)?.as_ref() != Some(&entry.result_sha256) {
             return Err("Falha na conferência do arquivo instalado.".into());
         }
@@ -775,8 +750,8 @@ fn apply_checked_control(
         });
     }
     state.phase = "installed".into();
-    save(&game, component, &state)?;
-    inspect_component(&game, component)
+    save(game, component, &state)?;
+    inspect_component(game, component)
 }
 
 pub fn restore(game: &Path, mut progress: impl FnMut(&str)) -> Result<AssetsInfo> {
@@ -826,16 +801,11 @@ fn restore_checked_control(
     control: &OperationControl,
     mut progress: impl FnMut(Progress),
 ) -> Result<AssetsInfo> {
-    let _lock = lock(&game)?;
-    ensure_closed(&game)?;
-    let mut state = load_state(&game, component)?;
-    let expected: Vec<_> = state
-        .assets
-        .iter()
-        .map(|e| current(&game.join(&e.file)))
-        .collect::<Result<_>>()?;
+    let _lock = lock(game)?;
+    let closed = ClosedGame::new(game)?;
+    let (mut state, expected) = load_observed_state(game, component)?;
     state.phase = "restoring".into();
-    save(&game, component, &state)?;
+    save(game, component, &state)?;
     let total = state.assets.len();
     for (index, (entry, expected)) in state.assets.iter().zip(expected.iter()).enumerate() {
         control.checkpoint()?;
@@ -845,7 +815,7 @@ fn restore_checked_control(
             total,
             message: format!("Restaurando {}", entry.file),
         });
-        ensure_closed(&game)?;
+        closed.ensure()?;
         let path = game.join(&entry.file);
         if &current(&path)? != expected {
             return Err("Arquivo mudou durante a restauração; preservado.".into());
@@ -870,8 +840,8 @@ fn restore_checked_control(
         });
     }
     state.phase = "restored".into();
-    save(&game, component, &state)?;
-    inspect_component(&game, component)
+    save(game, component, &state)?;
+    inspect_component(game, component)
 }
 
 #[cfg(test)]
