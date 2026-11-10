@@ -1,8 +1,8 @@
 //! Deploy the embedded companion through the same ownership journal as other components.
+use crate::paths;
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use soul_reaver_mod_core::{
-    EXE_SHA256, EXE_WIDESCREEN_SHA256, exe_sha256, external, is_game_running,
+    exe_sha256, external, is_game_running, is_supported_exe, sha256_hex as digest,
 };
 use std::{fs, path::Path, process::Command};
 
@@ -15,17 +15,10 @@ const COMPANION: &[u8] = &[];
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     pub installed: bool,
-    running: bool,
+    pub running: bool,
     pub connected: bool,
     device_name: Option<String>,
     pub message: String,
-}
-
-fn digest(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
 }
 
 #[cfg(windows)]
@@ -98,7 +91,7 @@ pub fn install(game: &Path) -> Result<Status, String> {
         game,
         &external::CONTROLLER,
         &manifest_path,
-        &super::backups_root()?,
+        &paths::backups_root()?,
         |_| {},
     )?;
     status(game)
@@ -159,8 +152,7 @@ pub fn launch(game: &Path) -> Result<Status, String> {
     if !state.connected {
         return Err("Conecte o DualSense por USB ou Bluetooth e atualize o status.".into());
     }
-    let hash = exe_sha256(game)?;
-    if hash != EXE_SHA256 && hash != EXE_WIDESCREEN_SHA256 {
+    if !is_supported_exe(&exe_sha256(game)?) {
         return Err("Executável incompatível; inicialização recusada.".into());
     }
     let companion = game.join("sr-dualsense.exe");
@@ -174,13 +166,12 @@ pub fn launch(game: &Path) -> Result<Status, String> {
         .map_err(|e| format!("Não foi possível abrir o jogo: {e}"))?;
     let mut bridge = Command::new(companion);
     bridge.args(["--attach", &child.id().to_string()]);
-    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
-        let logs = std::path::PathBuf::from(local).join("SoulReaverPTBR/logs");
-        if fs::create_dir_all(&logs).is_ok() {
-            bridge
-                .arg("--log")
-                .arg(logs.join(format!("dualsense-{}.jsonl", child.id())));
-        }
+    if let Ok(logs) = paths::logs_dir()
+        && fs::create_dir_all(&logs).is_ok()
+    {
+        bridge
+            .arg("--log")
+            .arg(logs.join(format!("dualsense-{}.jsonl", child.id())));
     }
     #[cfg(windows)]
     {
