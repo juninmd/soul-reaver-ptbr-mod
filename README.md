@@ -227,3 +227,10 @@ seus executáveis, arquivos DAT/BIG/BIK, saves, extrações ou pesos de modelos 
 Os direitos de *Legacy of Kain: Soul Reaver* pertencem aos seus respectivos titulares.
 
 <sub>Arte conceitual do cabeçalho gerada por IA para este projeto; não é uma captura do jogo.</sub>
+
+## Versões e atualização automática
+
+- Commits semânticos em `master` geram a versão sozinhos: `feat:` → minor, `fix:`/`perf:` → patch, `!` ou `BREAKING CHANGE:` → major. `chore:`/`docs:`/`ci:` não publicam.
+- `.github/workflows/release.yml` cria a tag, compila o instalador (NSIS), assina, valida o `latest.json` e publica a release.
+- O instalador mostra a versão (barra de título, rodapé e **Configurações**), procura atualizações ao abrir (desligável) e exibe o progresso do download.
+- Configuração única da assinatura: `tools/setup_updater_key.sh`.

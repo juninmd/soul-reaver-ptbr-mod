@@ -1,12 +1,12 @@
-interface Props { busy: boolean; running: boolean }
+interface Props { busy: boolean; running: boolean; version: string }
 
-export default function StatusBar({ busy, running }: Props) {
+export default function StatusBar({ busy, running, version }: Props) {
   const text = !busy ? 'Instalador PT-BR · cobertura parcial · backup e verificação de integridade'
     : running ? 'Operação em andamento · aguarde a conclusão segura' : 'Conferindo sua instalação…';
   return (
     <footer className={`statusbar ${busy ? 'busy' : ''}`}>
       <span><i />{text}</span>
-      <span className="footer-edition">NOSGOTH <b>/</b> PT-BR</span>
+      <span className="footer-edition">{version && <>v{version} <b>/</b> </>}NOSGOTH <b>/</b> PT-BR</span>
     </footer>
   );
 }

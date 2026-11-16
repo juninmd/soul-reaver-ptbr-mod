@@ -1,0 +1,82 @@
+name: Release
+
+# Every push to master with feat/fix/perf (Conventional Commits) becomes a tag, a GitHub Release
+# and a signed update that installed apps pick up. The version lives in the tag, not in a bot commit.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: plan
+        run: node tools/release_plan.mjs
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Version from the plan
+        run: node tools/release_plan.mjs --apply
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: installer/pnpm-lock.yaml }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: pnpm --dir installer install --frozen-lockfile
+      - run: pnpm --dir installer build
+      - name: Check signing key
+        shell: bash
+        env: { KEY: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" }
+        run: test -n "$KEY" || { echo "::error::Segredo TAURI_SIGNING_PRIVATE_KEY ausente. Rode tools/setup_updater_key.sh."; exit 1; }
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: installer
+          tagName: ${{ needs.plan.outputs.tag }}
+          releaseName: Instalador PT-BR ${{ needs.plan.outputs.tag }}
+          releaseBody: Atualização automática. Veja o histórico de commits desta versão.
+          releaseCommitish: ${{ github.sha }}
+          releaseDraft: true
+          includeUpdaterJson: true
+
+  publish:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify manifest, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json
+          node -e '
+            const m = JSON.parse(require("fs").readFileSync("latest.json","utf8"));
+            const p = m.platforms?.["windows-x86_64"] ?? m.platforms?.["windows-x86_64-nsis"];
+            if (m.version !== process.env.VERSION) throw new Error(`latest.json com versão ${m.version}`);
+            if (!p?.signature || !p.url.startsWith("https://")) throw new Error("plataforma Windows sem assinatura/URL https");
+          '
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

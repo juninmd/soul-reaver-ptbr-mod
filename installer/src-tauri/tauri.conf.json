@@ -36,6 +36,32 @@
     }
   },
   "bundle": {
-    "active": false
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY5NjVFMzQ1N0YyNTgzMTEKUldRUmd5Vi9SZU5sYVVmSC9yNG96WnQ5VC9ET3hTdjJBNndOY2pOa3A4RDByZmFDcGtlSFVQc3oK",
+      "endpoints": [
+        "https://github.com/juninmd/soul-reaver-ptbr-mod/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
