@@ -1,14 +1,15 @@
-export type Screen = 'home' | 'components' | 'progress' | 'restore' | 'diagnostics';
+export type Screen = 'home' | 'components' | 'progress' | 'restore' | 'diagnostics' | 'settings';
 
 export const navigation: { screen: Exclude<Screen, 'progress'>; label: string }[] = [
   { screen: 'home', label: 'A jornada' },
   { screen: 'components', label: 'Componentes' },
   { screen: 'restore', label: 'Restauração' },
   { screen: 'diagnostics', label: 'Diagnóstico e controle' },
+  { screen: 'settings', label: 'Configurações' },
 ];
 
 const titles: Record<Screen, string> = {
-  home: 'A jornada', components: 'Componentes', progress: 'Operação', restore: 'Restauração', diagnostics: 'Diagnóstico e controle',
+  home: 'A jornada', components: 'Componentes', progress: 'Operação', restore: 'Restauração', diagnostics: 'Diagnóstico e controle', settings: 'Configurações',
 };
 
 export function documentTitle(screen: Screen): string {

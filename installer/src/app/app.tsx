@@ -11,14 +11,15 @@ import ComponentsScreen from '../screens/components-screen';
 import DiagnosticsScreen from '../screens/diagnostics-screen';
 import HomeScreen from '../screens/home-screen';
 import ProgressScreen from '../screens/progress-screen';
+import SettingsScreen from '../screens/settings-screen';
+import UpdateBanner from '../components/update-banner';
+import { useSettings } from '../installer/settings';
+import { useUpdater } from '../installer/updater';
 import RestoreScreen from '../screens/restore-screen';
 import type { ScreenProps } from '../screens/screen-props';
 import { documentTitle, type Screen } from './navigation';
 import { viewState } from './view-state';
 
-const screens: Record<Screen, (props: ScreenProps) => ReactNode> = {
-  home: HomeScreen, components: ComponentsScreen, progress: ProgressScreen, restore: RestoreScreen, diagnostics: DiagnosticsScreen,
-};
 
 /** Application shell: window chrome, navigation, the current screen and its dialog. */
 export default function App() {
@@ -26,9 +27,11 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('home');
   const [modal, setModal] = useState<ModalName | null>(null);
   const [windowError, setWindowError] = useState('');
+  const [settings, updateSettings] = useSettings();
   const main = useRef<HTMLElement>(null);
   const view = viewState(installer);
   const { busy, mutation } = installer;
+  const updater = useUpdater(settings.autoUpdate, busy);
 
   // Each screen announces itself through its heading; the outcome of an operation does too.
   useEffect(() => {
@@ -66,11 +69,16 @@ export default function App() {
     setModal(null); setScreen('progress'); void installer.run(kind);
   }
 
+  const screens: Record<Screen, (props: ScreenProps) => ReactNode> = {
+    home: HomeScreen, components: ComponentsScreen, progress: ProgressScreen, restore: RestoreScreen, diagnostics: DiagnosticsScreen,
+    settings: props => <SettingsScreen {...props} updater={updater} settings={settings} onSettings={updateSettings} />,
+  };
   const CurrentScreen = screens[screen];
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">Ir para o conteúdo</a>
-      <WindowTitlebar edition={installer.bundle ? `v${installer.bundle.version}` : 'INSTALADOR'} onAction={action => void windowAction(action)} />
+      <WindowTitlebar edition={updater.version ? `v${updater.version}` : 'INSTALADOR'} onAction={action => void windowAction(action)} />
+      <div className="update-slot"><UpdateBanner updater={updater} busy={busy} /></div>
       <MainNav screen={screen} disabled={busy} onNavigate={navigate} onAbout={() => setModal('about')} />
       <main id="main" ref={main} tabIndex={-1} className={`main-content screen-${screen}`}>
         <CurrentScreen installer={installer} view={view} onNavigate={navigate} onOpenModal={setModal} onChangeLocation={() => { if (!busy) setModal('location'); }} />
