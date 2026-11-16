@@ -1,5 +1,5 @@
 /* Window chrome: title bar, navigation, the scrolling content area and the status bar. */
-.app-shell { height: 100dvh; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: clip; }
+.app-shell { height: 100dvh; display: grid; grid-template-rows: auto auto auto minmax(0, 1fr) auto; overflow: clip; }
 
 .titlebar { height: 40px; background: var(--color-chrome); display: flex; align-items: center; justify-content: space-between; user-select: none; border-bottom: 1px solid var(--color-line); }
 .titlebar-brand { display: flex; align-items: center; gap: 12px; padding-left: 22px; font-size: var(--text-label); letter-spacing: 2px; color: #d9d8c4; }

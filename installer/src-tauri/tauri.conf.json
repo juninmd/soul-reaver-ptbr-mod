@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Soul Reaver PT-BR Mod",
-  "version": "0.1.0",
   "identifier": "com.soulreaver.ptbr",
   "build": {
     "frontendDist": "../dist"
@@ -36,6 +35,32 @@
     }
   },
   "bundle": {
-    "active": false
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwNjY0RTQ4REZFNzM2QUMKUldTc051ZmZTRTVtNE9Fb2VSYnU1dFgvcEZGQmNLQzUwdXZrNFZyNEswVDNmV3owRlNSbWh4WWoK",
+      "endpoints": [
+        "https://github.com/juninmd/soul-reaver-ptbr-mod/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }
