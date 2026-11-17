@@ -1,7 +1,6 @@
 name: Release
 
-# Every push to master with feat/fix/perf (Conventional Commits) becomes a tag, a GitHub Release
-# and a signed update that installed apps pick up. The version lives in the tag, not in a bot commit.
+# Conventional Commits em master -> versão, tag, GitHub Release e latest.json (auto-update do app).
 on:
   push:
     branches: [master]
@@ -15,39 +14,67 @@ permissions:
   contents: write
 
 jobs:
-  plan:
+  version:
     runs-on: ubuntu-latest
     outputs:
-      release: ${{ steps.plan.outputs.release }}
-      version: ${{ steps.plan.outputs.version }}
-      tag: ${{ steps.plan.outputs.tag }}
+      release: ${{ steps.next.outputs.release }}
+      version: ${{ steps.next.outputs.version }}
+      tag: ${{ steps.next.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - id: plan
-        run: node tools/release_plan.mjs
+        with:
+          fetch-depth: 0
+      - id: next
+        run: |
+          out=$(node tools/release.mjs --apply)
+          echo "$out"
+          echo "release=$(jq -r .release <<<"$out")" >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r '.version // ""' <<<"$out")" >> "$GITHUB_OUTPUT"
+          echo "tag=$(jq -r '.tag // ""' <<<"$out")" >> "$GITHUB_OUTPUT"
+          jq -r '.notes // ""' <<<"$out" > "$RUNNER_TEMP/notes.md"
+      - name: Commit version bump and tag
+        if: steps.next.outputs.release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cargo metadata --format-version 1 >/dev/null
+          git add Cargo.toml Cargo.lock installer/package.json
+          git commit -m "chore(release): ${{ steps.next.outputs.tag }} [skip ci]"
+          git tag "${{ steps.next.outputs.tag }}"
+          git push origin HEAD:master --follow-tags
+      - uses: actions/upload-artifact@v4
+        if: steps.next.outputs.release == 'true'
+        with:
+          name: notes
+          path: ${{ runner.temp }}/notes.md
 
   build:
-    needs: plan
-    if: needs.plan.outputs.release == 'true'
+    needs: version
+    if: needs.version.outputs.release == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - name: Version from the plan
-        run: node tools/release_plan.mjs --apply
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: notes
+          path: notes
       - uses: pnpm/action-setup@v4
-        with: { version: 10 }
+        with:
+          version: 10
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm, cache-dependency-path: installer/pnpm-lock.yaml }
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: installer/pnpm-lock.yaml
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: pnpm --dir installer install --frozen-lockfile
-      - run: pnpm --dir installer build
-      - name: Check signing key
+      - id: notes
         shell: bash
-        env: { KEY: "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" }
-        run: test -n "$KEY" || { echo "::error::Segredo TAURI_SIGNING_PRIVATE_KEY ausente. Rode tools/setup_updater_key.sh."; exit 1; }
+        run: |
+          { echo 'body<<EOF'; cat notes/notes.md; echo EOF; } >> "$GITHUB_OUTPUT"
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,28 +82,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: installer
-          tagName: ${{ needs.plan.outputs.tag }}
-          releaseName: Instalador PT-BR ${{ needs.plan.outputs.tag }}
-          releaseBody: Atualização automática. Veja o histórico de commits desta versão.
-          releaseCommitish: ${{ github.sha }}
-          releaseDraft: true
-          includeUpdaterJson: true
-
-  publish:
-    needs: [plan, build]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify manifest, then publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.plan.outputs.tag }}
-          VERSION: ${{ needs.plan.outputs.version }}
-        run: |
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern latest.json
-          node -e '
-            const m = JSON.parse(require("fs").readFileSync("latest.json","utf8"));
-            const p = m.platforms?.["windows-x86_64"] ?? m.platforms?.["windows-x86_64-nsis"];
-            if (m.version !== process.env.VERSION) throw new Error(`latest.json com versão ${m.version}`);
-            if (!p?.signature || !p.url.startsWith("https://")) throw new Error("plataforma Windows sem assinatura/URL https");
-          '
-          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          tagName: ${{ needs.version.outputs.tag }}
+          releaseName: Soul Reaver PT-BR ${{ needs.version.outputs.tag }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true

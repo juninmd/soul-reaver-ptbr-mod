@@ -131,11 +131,3 @@ progress:not([value])::-webkit-progress-bar { background: linear-gradient(90deg,
   .module-tag { white-space: normal; text-align: center; max-width: 96px; }
   .coverage-note { align-items: flex-start; }
 }
-
-/* Updates and settings */
-.update-banner { position: fixed; right: 16px; bottom: 44px; z-index: 20; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; max-width: min(520px, calc(100vw - 32px)); background: #14231f; border: 1px solid var(--color-spectral); padding: 10px 14px; font-size: var(--text-small); color: #d5eadb; box-shadow: 0 6px 24px #000a; }
-.update-banner progress { width: 100%; height: 6px; accent-color: var(--color-spectral); }
-.settings-list { display: grid; gap: 8px; margin: 16px 0; }
-.settings-list div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid #ffffff14; padding-bottom: 8px; }
-.settings-list dt { opacity: .75; }
-.update-notes { max-height: 160px; overflow: auto; white-space: pre-wrap; background: #0a1112; padding: 10px; font-size: var(--text-small); }

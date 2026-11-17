@@ -117,3 +117,13 @@
   .progress-panel h1, .workspace h1 { font-size: 29px; }
   .restore-art { min-height: 360px; padding: 30px 24px; }
 }
+
+/* Configurações e atualização */
+.settings-workspace { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; }
+.settings-card { border: 1px solid var(--line, #2a3b3d); padding: 1rem 1.25rem; display: grid; gap: .6rem; }
+.settings-card h2 { margin: 0; }
+.settings-toggle { display: flex; gap: .6rem; align-items: center; }
+.settings-actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+.update-notes { max-height: 10rem; overflow: auto; white-space: pre-wrap; font: inherit; opacity: .85; }
+.update-banner { display: flex; align-items: center; gap: .75rem; padding: .5rem 1rem; background: #17302b; border-bottom: 1px solid #3f7a69; }
+.update-banner progress { flex: 1; max-width: 20rem; height: .6rem; }
