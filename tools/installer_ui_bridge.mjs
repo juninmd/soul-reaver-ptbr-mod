@@ -48,6 +48,8 @@ export function installBridge() {
         const diagnostics = failure ? null : { path: args.gamePath, exeSha256: '9'.repeat(64), exeSupported: true, gameClosed: !bridge.controller.running, items: [{ id: 'voices', ok: bridge.game.status === 'installed', detail: `${bridge.game.replaced}/479 falas contra o backup` }, { id: 'controller', ok: false, detail: bridge.controller.message }] };
         return { game: structuredClone(bridge.game), error: null, diagnostics, controller, warnings: failure ? [failure] : [] };
       }
+      if (command === 'plugin:app|version') return '0.0.0-test';
+      if (command === 'plugin:updater|check') return null;
       if (command === 'plugin:dialog|open') return bridge.folder;
       if (['apply_mod', 'repair_mod', 'restore_mod'].includes(command)) return new Promise((resolve, reject) => { bridge.pending = { command, resolve, reject }; });
       if (command === 'launch_game') return new Promise((resolve, reject) => { bridge.launchPending = { resolve, reject }; });
