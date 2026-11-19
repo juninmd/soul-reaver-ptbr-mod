@@ -231,6 +231,7 @@ Os direitos de *Legacy of Kain: Soul Reaver* pertencem aos seus respectivos titu
 ## Versões e atualização automática
 
 - Commits semânticos em `master` geram a versão sozinhos: `feat:` → minor, `fix:`/`perf:` → patch, `!` ou `BREAKING CHANGE:` → major. `chore:`/`docs:`/`ci:` não publicam.
+- `.github/workflows/ci.yml` roda `cargo fmt --check`, `clippy -D warnings` e `cargo test` do `soul-reaver-mod-core` em todo PR e push na `master`.
 - `.github/workflows/release.yml` cria a tag, compila o instalador (NSIS), assina e publica a release com o `latest.json` que o auto-update consome.
 - O instalador mostra a versão (barra de título e **Configurações**), procura atualizações ao abrir (desligável) e exibe o progresso do download.
 - Configuração única da assinatura: `tools/setup_updater_key.sh`.
