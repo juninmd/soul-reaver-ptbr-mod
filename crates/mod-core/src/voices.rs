@@ -105,7 +105,7 @@ fn slots(exe: &[u8], bytes: usize) -> Result<SlotTable> {
         .ok_or("Executável sem tabela de vozes.")?;
     let mut cursor = 0;
     let mut entries = Vec::with_capacity(COUNT);
-    for item in data.chunks_exact(8) {
+    for item in data.as_chunks::<8>().0 {
         let offset = u32::from_le_bytes(item[..4].try_into().unwrap()) as usize;
         let length = u32::from_le_bytes(item[4..].try_into().unwrap()) as usize;
         if offset != cursor
