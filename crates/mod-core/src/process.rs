@@ -3,6 +3,7 @@
 use crate::{Result, fsx::io};
 use std::{
     cell::Cell,
+    ffi::OsStr,
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
@@ -18,14 +19,25 @@ pub fn is_game_running(game: &Path) -> Result<bool> {
             .with_exe(sysinfo::UpdateKind::Always)
             .without_tasks(),
     );
-    Ok(system.processes().values().any(|p| {
-        p.name()
-            .to_str()
-            .is_some_and(|n| n.eq_ignore_ascii_case("kain2.exe"))
-            && p.exe()
-                .and_then(|e| e.canonicalize().ok())
-                .is_some_and(|e| e == expected)
-    }))
+    Ok(system
+        .processes()
+        .values()
+        .any(|p| is_managed_game(p.name(), p.exe(), &expected)))
+}
+
+/// A `kain2.exe` whose path cannot be read (e.g. an elevated game seen from a
+/// non-elevated installer) counts as running: writing under it is not safe.
+fn is_managed_game(name: &OsStr, exe: Option<&Path>, expected: &Path) -> bool {
+    if !name
+        .to_str()
+        .is_some_and(|n| n.eq_ignore_ascii_case("kain2.exe"))
+    {
+        return false;
+    }
+    match exe.map(Path::canonicalize) {
+        Some(Ok(path)) => path == expected,
+        _ => true,
+    }
 }
 
 pub(crate) fn ensure_closed(game: &Path) -> Result<()> {
@@ -89,5 +101,40 @@ impl ClosedGame {
         } else {
             self.ensure()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unreadable_game_path_counts_as_running() {
+        let dir = tempfile::tempdir().unwrap();
+        let expected = dir.path().canonicalize().unwrap();
+        assert!(is_managed_game(OsStr::new("KAIN2.EXE"), None, &expected));
+        assert!(is_managed_game(
+            OsStr::new("kain2.exe"),
+            Some(&dir.path().join("missing.exe")),
+            &expected
+        ));
+    }
+
+    #[test]
+    fn readable_paths_are_matched_exactly() {
+        let dir = tempfile::tempdir().unwrap();
+        let other = tempfile::tempdir().unwrap();
+        let expected = dir.path().canonicalize().unwrap();
+        assert!(is_managed_game(
+            OsStr::new("kain2.exe"),
+            Some(dir.path()),
+            &expected
+        ));
+        assert!(!is_managed_game(
+            OsStr::new("kain2.exe"),
+            Some(other.path()),
+            &expected
+        ));
+        assert!(!is_managed_game(OsStr::new("notepad.exe"), None, &expected));
     }
 }
