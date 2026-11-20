@@ -7,7 +7,8 @@ import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 const root = new URL('../', import.meta.url);
-const tags = git('tag', '--list', 'v[0-9]*', '--merged', 'HEAD').split('\n').filter(Boolean)
+// Only plain vX.Y.Z tags count: a pre-release like v1.2.0-rc1 would sort as NaN and pick the wrong base.
+const tags = git('tag', '--list', 'v[0-9]*', '--merged', 'HEAD').split('\n').filter(t => /^v\d+\.\d+\.\d+$/.test(t))
   .sort((a, b) => { const [x, y] = [a, b].map(t => t.slice(1).split('.').map(Number)); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; });
 const last = tags.at(-1);
 const log = git('log', '--first-parent', '--format=%H%x1f%s%x1f%b%x1e', last ? `${last}..HEAD` : 'HEAD');
