@@ -171,10 +171,24 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
 }
 
 /// Creates a new synced file, failing if the destination already exists.
+/// The bytes go to a sibling temporary file first, so an interrupted write
+/// never leaves a truncated file at `path` (backups are trusted by existence).
 pub(crate) fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
-    let mut file = io(OpenOptions::new().write(true).create_new(true).open(path))?;
-    io(file.write_all(bytes))?;
-    io(file.sync_all())
+    write_new_with(path, |file| file.write_all(bytes))
+}
+
+fn write_new_with(path: &Path, fill: impl FnOnce(&mut File) -> std::io::Result<()>) -> Result<()> {
+    if path.exists() {
+        return Err(format!("{} já existe.", path.display()));
+    }
+    let parent = path.parent().ok_or("Destino sem diretório pai.")?;
+    let mut temporary = io(tempfile::NamedTempFile::new_in(parent))?;
+    io(fill(temporary.as_file_mut()))?;
+    io(temporary.as_file().sync_all())?;
+    temporary
+        .persist_noclobber(path)
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Canonical game directory whose `kain2.exe` is one of the supported builds.
@@ -220,6 +234,27 @@ pub(crate) fn lock_operation(game: &Path) -> Result<File> {
 mod tests {
     use super::*;
     use std::sync::{Arc, Barrier};
+
+    /// A backup interrupted mid-write (disk full, power loss) must not be left
+    /// at its final path: the next run would trust `exists()` and fail forever.
+    #[test]
+    fn interrupted_backup_leaves_no_partial_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let backup = dir.path().join("voices.dat.bak");
+        let result = write_new_with(&backup, |file| {
+            file.write_all(b"half of the ")?;
+            Err(std::io::Error::other("disk full"))
+        });
+        assert!(result.is_err());
+        assert!(!backup.exists(), "partial backup left at its final path");
+        write_new(&backup, b"original").unwrap();
+        assert_eq!(fs::read(&backup).unwrap(), b"original");
+        assert!(
+            write_new(&backup, b"other").is_err(),
+            "must never overwrite a backup"
+        );
+        assert_eq!(fs::read(&backup).unwrap(), b"original");
+    }
 
     /// Two components starting together (CLI + installer) must see the lock
     /// message, never the I/O error of losing the race to create the directory.
