@@ -210,8 +210,12 @@ pub(crate) fn supported_game_dir(
 pub(crate) fn lock_operation(game: &Path) -> Result<File> {
     let root = game.join(MANAGER);
     chain(&root)?;
-    if !root.exists() {
-        io(fs::create_dir(&root))?;
+    // Idempotent: two components starting together must both reach the lock below.
+    match fs::create_dir(&root) {
+        Err(error) if error.kind() != std::io::ErrorKind::AlreadyExists => {
+            return Err(error.to_string());
+        }
+        _ => {}
     }
     let path = root.join("operation.lock");
     chain(&path)?;
@@ -229,6 +233,7 @@ pub(crate) fn lock_operation(game: &Path) -> Result<File> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
 
     /// A backup interrupted mid-write (disk full, power loss) must not be left
     /// at its final path: the next run would trust `exists()` and fail forever.
@@ -249,5 +254,29 @@ mod tests {
             "must never overwrite a backup"
         );
         assert_eq!(fs::read(&backup).unwrap(), b"original");
+    }
+
+    /// Two components starting together (CLI + installer) must see the lock
+    /// message, never the I/O error of losing the race to create the directory.
+    #[test]
+    fn concurrent_lock_reports_busy_instead_of_dir_error() {
+        for _ in 0..200 {
+            let game = tempfile::tempdir().unwrap();
+            let barrier = Arc::new(Barrier::new(4));
+            let handles: Vec<_> = (0..4)
+                .map(|_| {
+                    let (game, barrier) = (game.path().to_path_buf(), barrier.clone());
+                    std::thread::spawn(move || {
+                        barrier.wait();
+                        lock_operation(&game).map(|_| ())
+                    })
+                })
+                .collect();
+            for handle in handles {
+                if let Err(error) = handle.join().unwrap() {
+                    assert_eq!(error, "Outra instalação está em andamento.");
+                }
+            }
+        }
     }
 }
